@@ -461,6 +461,19 @@ static u32 fat_dir_clus(const char * dir, char * shortdir)
 	return clus;
 }
 
+// Keep the FAT table loaded between fat_readdir() calls. Every readdir
+// otherwise reads the whole table from the Memory Stick (several MB on a
+// big card), which made scanning hundreds of folders crawl.
+int fat_hold()
+{
+	return fat_load_table();
+}
+
+void fat_release()
+{
+	fat_free_table();
+}
+
 u32 fat_readdir(const char * dir, char * sdir, p_fat_info * info)
 {
 	if(!fat_load_table() || fatfd < 0)

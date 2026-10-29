@@ -27,12 +27,141 @@ Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
 
 #include <ctype.h>
 #include <stdio.h>
+#include <stdlib.h>
+#include <strings.h>
 #include "opendir.h"
 #include "fat.h"
 #include "libminiconv.h"
 #include <pspsysmem.h>
 
 static int FATinit = 0;
+static int batchHeld = 0;
+
+static void initFAT(){
+	if (!FATinit){
+		fat_init(sceKernelDevkitVersion());
+		FATinit = 1;
+	}
+}
+
+// Call around a run of many opendir_open() calls (library scan, Shuffle All)
+// so the FAT table is read once instead of once per folder.
+void opendir_beginBatch(){
+	initFAT();
+	if (!batchHeld)
+		batchHeld = fat_hold();
+}
+
+void opendir_endBatch(){
+	if (batchHeld){
+		fat_release();
+		batchHeld = 0;
+	}
+}
+
+// Check a folder (long name path) against a ';' separated exclude list.
+// Entries with a ':' are full paths ("ms0:/MUSIC/Podcasts") and also exclude
+// everything below them; entries without one match a folder name anywhere
+// ("Podcasts"). Matching ignores case and trailing slashes.
+int opendir_isExcluded(const char *dirName, const char *excludeList){
+	char entry[264];
+	const char *p = excludeList;
+	const char *baseName = strrchr(dirName, '/');
+	int dirLen = strlen(dirName);
+
+	baseName = baseName ? baseName + 1 : dirName;
+	while (dirLen > 0 && dirName[dirLen - 1] == '/')
+		dirLen--;
+
+	while (p && *p){
+		const char *end = strchr(p, ';');
+		int len = end ? end - p : strlen(p);
+		while (len > 0 && (*p == ' ' || *p == '\t')){
+			p++;
+			len--;
+		}
+		while (len > 0 && (p[len - 1] == ' ' || p[len - 1] == '/' || p[len - 1] == '\r' || p[len - 1] == '\n'))
+			len--;
+		if (len > 0 && len < sizeof(entry)){
+			memcpy(entry, p, len);
+			entry[len] = '\0';
+			if (strchr(entry, ':')){
+				if (dirLen >= len && !strncasecmp(dirName, entry, len) && (dirLen == len || dirName[len] == '/'))
+					return 1;
+			}else if (!strcasecmp(baseName, entry))
+				return 1;
+		}
+		p = end ? end + 1 : NULL;
+	}
+	return 0;
+}
+
+// Fallback listing through the firmware when the raw FAT read fails
+// (not enough memory for the FAT table, or a device other than ms0:).
+// The firmware fills the 8.3 short name in when d_private points at a
+// SceIoFatDirentPrivate.
+
+static char *opendir_open_firmware(struct opendir_struct *p, const char *directoryShort, char extFilter[][5], int extNumber, int includeDirs){
+	SceIoDirent entry;
+	SceIoFatDirentPrivate priv;
+	unsigned int allocated = 64;
+	SceUID dir = sceIoDopen(directoryShort);
+	if (dir < 0)
+		return("opendir_open: sceIoDopen failed");
+
+	p->directory_entry = malloc_64(sizeof(struct dirElement) * allocated);
+	if (p->directory_entry == 0){
+		sceIoDclose(dir);
+		return("opendir_open: malloc_64 failed on directory_entry");
+	}
+
+	memset(&entry, 0, sizeof(entry));
+	memset(&priv, 0, sizeof(priv));
+	priv.size = sizeof(priv);
+	entry.d_private = &priv;
+	while (sceIoDread(dir, &entry) > 0){
+		struct dirElement *el;
+		if (entry.d_name[0] == '.')
+			goto next;
+		if (FIO_S_ISREG(entry.d_stat.st_mode)){
+			char ext[5] = "";
+			int j;
+			getExtension(entry.d_name, ext, 4);
+			for (j = 0; j < extNumber; j++)
+				if (!strcmp(ext, extFilter[j]))
+					break;
+			if (j == extNumber)
+				goto next;
+		}else if (!FIO_S_ISDIR(entry.d_stat.st_mode) || !includeDirs)
+			goto next;
+
+		if (p->number_of_directory_entries == allocated){
+			struct dirElement *bigger = malloc_64(sizeof(struct dirElement) * allocated * 2);
+			if (!bigger)
+				break;
+			memcpy(bigger, p->directory_entry, sizeof(struct dirElement) * allocated);
+			free_64(p->directory_entry);
+			p->directory_entry = bigger;
+			allocated *= 2;
+		}
+		el = &p->directory_entry[p->number_of_directory_entries++];
+		strncpy(el->longname, entry.d_name, sizeof(el->longname) - 1);
+		el->longname[sizeof(el->longname) - 1] = '\0';
+		if (priv.s_name[0])
+			strcpy(el->d_name, priv.s_name);
+		else
+			strcpy(el->d_name, el->longname);
+		el->d_stat = entry.d_stat;
+next:
+		memset(&entry, 0, sizeof(entry));
+		memset(&priv, 0, sizeof(priv));
+		priv.size = sizeof(priv);
+		entry.d_private = &priv;
+	}
+	sceIoDclose(dir);
+	sortDirectory(p);
+	return(0);
+}
 
 void opendir_safe_constructor(struct opendir_struct *p){
 	p->directory_entry = 0;
@@ -47,10 +176,7 @@ void opendir_close(struct opendir_struct *p){
 
 
 char *opendir_open(struct opendir_struct *p, const char *directory, const char *directoryShort, char extFilter[][5], int extNumber, int includeDirs){
-	if (!FATinit){
-		fat_init(sceKernelDevkitVersion());
-		FATinit = 1;
-	}
+	initFAT();
 
 	char sdir[264] = "";
 	strcpy(sdir, directoryShort);
@@ -58,10 +184,8 @@ char *opendir_open(struct opendir_struct *p, const char *directory, const char *
 
 	p_fat_info finfo;
     u32 number_of_directory_entries = fat_readdir(directory, sdir, &finfo);
-	if(number_of_directory_entries == INVALID){
-		free((void *)finfo);
-		return("opendir_open: invalid count");
-	}
+	if(number_of_directory_entries == INVALID)
+		return opendir_open_firmware(p, directoryShort, extFilter, extNumber, includeDirs);
 
     //FILE *log = fopen("open_dir.txt", "w");
 	p->directory_entry = malloc_64(sizeof(struct dirElement) * number_of_directory_entries);
@@ -134,20 +258,20 @@ char *opendir_open(struct opendir_struct *p, const char *directory, const char *
 }
 
 
-//Ordinamento dei file di una directory:
+//Ordinamento dei file di una directory (directories first, then by name):
+static int compareDirElements(const void *a, const void *b){
+	const struct dirElement *e1 = a;
+	const struct dirElement *e2 = b;
+	int dir1 = FIO_S_ISDIR(e1->d_stat.st_mode) ? 1 : 0;
+	int dir2 = FIO_S_ISDIR(e2->d_stat.st_mode) ? 1 : 0;
+	if (dir1 != dir2)
+		return dir2 - dir1;
+	return stricmp(e1->longname, e2->longname);
+}
+
 void sortDirectory(struct opendir_struct *directory){
-	int n = directory->number_of_directory_entries;
-	int i = 0;
-    char comp1[268] = "";
-    char comp2[268] = "";
-
-	while (i < n){
-        snprintf(comp1, sizeof(comp1), "%s-%s", FIO_S_ISDIR(directory->directory_entry[i-1].d_stat.st_mode)?"A":"Z", directory->directory_entry[i-1].longname);
-        snprintf(comp2, sizeof(comp2), "%s-%s", FIO_S_ISDIR(directory->directory_entry[i].d_stat.st_mode)?"A":"Z", directory->directory_entry[i].longname);
-
-		if (i == 0 || stricmp(comp1, comp2) <= 0) i++;
-		else {struct dirElement tmp = directory->directory_entry[i]; directory->directory_entry[i] = directory->directory_entry[i-1]; directory->directory_entry[--i] = tmp;}
-	}
+	if (directory->number_of_directory_entries > 1)
+		qsort(directory->directory_entry, directory->number_of_directory_entries, sizeof(struct dirElement), compareDirElements);
 }
 
 //Extract extension from a filename:

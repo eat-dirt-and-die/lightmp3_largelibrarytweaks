@@ -38,8 +38,6 @@ static char sql[ML_SQLMAXLENGTH] = "";
 static sqlite3_stmt *stmt;
 static char *zErr = 0;
 static long recordsCount = 0;
-static char dirToScan[500][264];
-static char dirToScanShort[500][264];
 
 static int transaction = 0;
 
@@ -225,24 +223,34 @@ int ML_closeDB(){
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Scan all memory stick for media (returns number of media found or < 0 if an error occurred):
+// Files already in the library are not re-read, so rescans only pay for new files.
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+struct scanDirEntry{
+    char name[264];
+    char shortName[264];
+};
+
 int ML_scanMS(char *rootDir,
               char extFilter[][5], int extNumber,
+              char *excludeList,
               int (*scanDir)(char *dirName),
               int (*scanFile)(char *fileName, int errorCode)){
     int mediaFound = 0;
-    int errorCode;
-    //char dirToScan[500][264];
-    //char dirToScanShort[500][264];
+    int errorCode = 0;
     char fullName[264] = "";
     char fullNameShort[264] = "";
     char ext[5] = "";
-    int dirScanned = 0;
-    int dirToScanNumber = 1;
+    struct scanDirEntry current;
+    struct scanDirEntry *dirStack = NULL;
+    int dirStackCount = 0;
+    int dirStackSize = 0;
     struct fileInfo info;
 	struct opendir_struct openedDir;
+    sqlite3_stmt *existsStmt = NULL;
+    sqlite3_stmt *insertStmt = NULL;
     char *result = NULL;
     int i = 0;
+    int stop = 0;
     int retValue = 0;
 
     if (ML_INTERNAL_openDB(dbDirectory, dbFileName))
@@ -255,88 +263,116 @@ int ML_scanMS(char *rootDir,
         return ML_ERROR_SQL;
     }
 
-    //FILE *log = fopen("ML_scan.txt", "w");
+    if (sqlite3_prepare_v2(db, "select 1 from media where path = upper(?);", -1, &existsStmt, 0) != SQLITE_OK ||
+        sqlite3_prepare_v2(db, "insert into media (artist, album, title, genre, year, path, shortpath, \
+                                     extension, seconds, samplerate, bitrate, tracknumber) \
+                                values(?, ?, ?, ?, ?, upper(?), ?, ?, ?, ?, ?, ?);", -1, &insertStmt, 0) != SQLITE_OK){
+        sqlite3_finalize(existsStmt);
+        sqlite3_finalize(insertStmt);
+        sqlite3_exec(db, "ROLLBACK", NULL, 0, NULL);
+        ML_INTERNAL_closeDB();
+        return ML_ERROR_SQL;
+    }
 
-    strcpy(dirToScan[0], rootDir);
-    strcpy(dirToScanShort[0], rootDir);
-    while (dirScanned < dirToScanNumber){
-        //fwrite("Scanning: ", sizeof(char), strlen("Scanning: "), log);
-        //fwrite(dirToScan[dirScanned], sizeof(char), strlen(dirToScan[dirScanned]), log);
+    opendir_beginBatch();
+
+    //Folders still to scan (grows as needed, so any number of folders works):
+    dirStackSize = 64;
+    dirStack = malloc(sizeof(struct scanDirEntry) * dirStackSize);
+    if (dirStack){
+        strncpy(dirStack[0].name, rootDir, 263);
+        dirStack[0].name[263] = '\0';
+        strcpy(dirStack[0].shortName, dirStack[0].name);
+        dirStackCount = 1;
+    }
+
+    while (dirStackCount > 0 && !stop){
+        current = dirStack[--dirStackCount];
 
         //Directory callback:
         if (scanDir != NULL)
-            if ((*scanDir)(dirToScan[dirScanned]) < 0)
+            if ((*scanDir)(current.name) < 0)
                 break;
 
-    	result = opendir_open(&openedDir, dirToScan[dirScanned], dirToScanShort[dirScanned], extFilter, extNumber, 1);
+    	result = opendir_open(&openedDir, current.name, current.shortName, extFilter, extNumber, 1);
     	if (result == 0){
             for (i = 0; i < openedDir.number_of_directory_entries; i++){
                 if (!strcmp(openedDir.directory_entry[i].d_name, ".") || !strcmp(openedDir.directory_entry[i].d_name, ".."))
                     continue;
 
-                //fwrite("  ", sizeof(char), strlen("  "), log);
-                //fwrite(openedDir.directory_entry[i].longname, sizeof(char), strlen(openedDir.directory_entry[i].longname), log);
-
-                if (dirToScan[dirScanned][strlen(dirToScan[dirScanned])-1] != '/'){
-                    snprintf(fullName, sizeof(fullName), "%s/%s", dirToScan[dirScanned], openedDir.directory_entry[i].longname);
-                    snprintf(fullNameShort, sizeof(fullNameShort), "%s/%s", dirToScanShort[dirScanned], openedDir.directory_entry[i].d_name);
+                if (current.name[strlen(current.name)-1] != '/'){
+                    snprintf(fullName, sizeof(fullName), "%s/%s", current.name, openedDir.directory_entry[i].longname);
+                    snprintf(fullNameShort, sizeof(fullNameShort), "%s/%s", current.shortName, openedDir.directory_entry[i].d_name);
                 }else{
-                    snprintf(fullName, sizeof(fullName), "%s%s", dirToScan[dirScanned], openedDir.directory_entry[i].longname);
-                    snprintf(fullNameShort, sizeof(fullNameShort), "%s%s", dirToScanShort[dirScanned], openedDir.directory_entry[i].d_name);
+                    snprintf(fullName, sizeof(fullName), "%s%s", current.name, openedDir.directory_entry[i].longname);
+                    snprintf(fullNameShort, sizeof(fullNameShort), "%s%s", current.shortName, openedDir.directory_entry[i].d_name);
                 }
 
                 if (FIO_S_ISREG(openedDir.directory_entry[i].d_stat.st_mode)){
+                    //Already in the library? Then skip reading its tags:
+                    sqlite3_bind_text(existsStmt, 1, fullNameShort, -1, SQLITE_TRANSIENT);
+                    int exists = sqlite3_step(existsStmt) == SQLITE_ROW;
+                    sqlite3_reset(existsStmt);
+                    if (exists){
+                        mediaFound++;
+                        continue;
+                    }
+
                     //Media found:
                     if (setAudioFunctions(fullNameShort, 1))
 						continue;
                     info = (*getTagInfoFunct)(fullNameShort);
+                    unsetAudioFunctions();
                     errorCode = 0;
                     getExtension(fullNameShort, ext, 4);
-                    ML_fixStringField(info.artist);
-                    ML_fixStringField(info.album);
-                    ML_fixStringField(info.title);
-                    ML_fixStringField(info.genre);
-                    //ML_fixStringField(fullName);
-                    ML_fixStringField(fullNameShort);
-                    snprintf(sql, sizeof(sql), "insert into media (artist, album, title, genre, year, path, shortpath, \
-                                                     extension, seconds, samplerate, bitrate, tracknumber) \
-                                  values('%s', '%s', '%s', '%s', '%s', upper('%s'), '%s', '%s', %li, %li, %i, %i);",
-                                  info.artist, info.album, info.title, info.genre, info.year,
-                                  fullNameShort, fullNameShort, ext,
-                                  info.length, info.hz, info.kbit, atoi(info.trackNumber));
-                    retValue = sqlite3_prepare_v2(db, sql, -1, &stmt, 0);
-                    if (retValue != SQLITE_OK){
-                        //ML_INTERNAL_closeDB();
-                        //return ML_ERROR_SQL;
-                        sqlite3_finalize(stmt);
-                        continue;
-                    }
 
-                    if (sqlite3_step(stmt) == SQLITE_CONSTRAINT){
-                        sqlite3_finalize(stmt);
+                    sqlite3_bind_text(insertStmt, 1, info.artist, -1, SQLITE_TRANSIENT);
+                    sqlite3_bind_text(insertStmt, 2, info.album, -1, SQLITE_TRANSIENT);
+                    sqlite3_bind_text(insertStmt, 3, info.title, -1, SQLITE_TRANSIENT);
+                    sqlite3_bind_text(insertStmt, 4, info.genre, -1, SQLITE_TRANSIENT);
+                    sqlite3_bind_text(insertStmt, 5, info.year, -1, SQLITE_TRANSIENT);
+                    sqlite3_bind_text(insertStmt, 6, fullNameShort, -1, SQLITE_TRANSIENT);
+                    sqlite3_bind_text(insertStmt, 7, fullNameShort, -1, SQLITE_TRANSIENT);
+                    sqlite3_bind_text(insertStmt, 8, ext, -1, SQLITE_TRANSIENT);
+                    sqlite3_bind_int(insertStmt, 9, info.length);
+                    sqlite3_bind_int(insertStmt, 10, info.hz);
+                    sqlite3_bind_int(insertStmt, 11, info.kbit);
+                    sqlite3_bind_int(insertStmt, 12, atoi(info.trackNumber));
+                    retValue = sqlite3_step(insertStmt);
+                    sqlite3_reset(insertStmt);
+                    if (retValue != SQLITE_DONE)
                         continue;
-                    }
-                    sqlite3_finalize(stmt);
                     mediaFound++;
-                    unsetAudioFunctions();
 
                     //File callback:
                     if (scanFile != NULL)
                         if ((*scanFile)(openedDir.directory_entry[i].longname, errorCode) < 0){
-                            dirScanned = dirToScanNumber;
+                            stop = 1;
                             break;
                         }
                 }else if (FIO_S_ISDIR(openedDir.directory_entry[i].d_stat.st_mode)){
-                    strcpy(dirToScan[dirToScanNumber], fullName);
-                    strcpy(dirToScanShort[dirToScanNumber], fullNameShort);
-                    dirToScanNumber++;
+                    if (excludeList != NULL && opendir_isExcluded(fullName, excludeList))
+                        continue;
+                    if (dirStackCount == dirStackSize){
+                        struct scanDirEntry *bigger = realloc(dirStack, sizeof(struct scanDirEntry) * dirStackSize * 2);
+                        if (!bigger)
+                            continue;
+                        dirStack = bigger;
+                        dirStackSize *= 2;
+                    }
+                    strcpy(dirStack[dirStackCount].name, fullName);
+                    strcpy(dirStack[dirStackCount].shortName, fullNameShort);
+                    dirStackCount++;
                 }
             }
         }
     	opendir_close(&openedDir);
-        dirScanned++;
     }
-    //fclose(log);
+
+    free(dirStack);
+    opendir_endBatch();
+    sqlite3_finalize(existsStmt);
+    sqlite3_finalize(insertStmt);
 
     retValue = sqlite3_exec(db, "COMMIT", NULL, 0, &zErr);
     if (retValue != SQLITE_OK){

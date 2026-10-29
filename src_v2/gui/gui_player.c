@@ -929,30 +929,29 @@ int playFile(char *fileName, char *trackMessage, int index, double startFilePos)
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Get a random track:
+// Shuffle the play order once (Fisher-Yates), so picking the next track is
+// instant and no track repeats until all have played. If first >= 0 that
+// track is put at the start of the order.
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-int randomTrack(int max, unsigned int played, unsigned int used[]){
-	int random;
-	int found = 0;
-	if (played == max){
-		return(-1);
+static void shuffleOrder(int *order, int count, int first){
+	int i;
+	for (i = 0; i < count; i++)
+		order[i] = i;
+	for (i = count - 1; i > 0; i--){
+		int j = (int)((double)rand() / ((double)RAND_MAX + 1.0) * (i + 1));
+		int tmp = order[i];
+		order[i] = order[j];
+		order[j] = tmp;
 	}
-
-	found = 1;
-	while (found == 1){
-		//random = (int)oslRandf(0, max);
-        random = rand()%max;
-		//Controllo se l'ho già suonata:
-		int i;
-		found = 0;
-		for (i=0; i<played; i++){
-			if (used[i] == random){
-				found = 1;
+	if (first >= 0 && first < count){
+		for (i = 0; i < count; i++){
+			if (order[i] == first){
+				order[i] = order[0];
+				order[0] = first;
 				break;
 			}
 		}
 	}
-	return(random);
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -960,9 +959,8 @@ int randomTrack(int max, unsigned int played, unsigned int used[]){
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 int playPlaylist(struct M3U_playList *playList, int startIndex, double startFilePos){
 	int songCount = M3U_getSongCount();
-	unsigned int playedTracks[songCount];
-	unsigned int playedTracksNumber = 0;
-	unsigned int currentTrack = 0;
+	int *shuffled = NULL;	//Shuffled play order (built when shuffle is on)
+	int shufflePos = 0;
     struct M3U_songEntry *song;
     int i = 0;
     char message[20] = "";
@@ -978,32 +976,29 @@ int playPlaylist(struct M3U_playList *playList, int startIndex, double startFile
 
     ML_startTransaction();
 
+	if (songCount > 0)
+		shuffled = malloc(sizeof(int) * songCount);
+
     if (startIndex >= 0)
         i = startIndex;
-	else if (userSettings->playMode == MODE_SHUFFLE || userSettings->playMode == MODE_SHUFFLE_REPEAT)
-		i = randomTrack(songCount, playedTracksNumber, playedTracks);
-	else
+	else if (shuffled && (userSettings->playMode == MODE_SHUFFLE || userSettings->playMode == MODE_SHUFFLE_REPEAT)){
+		shuffleOrder(shuffled, songCount, -1);
+		i = shuffled[0];
+	}else
 		i = 0;
+	if (shuffled && startIndex >= 0)
+		shuffleOrder(shuffled, songCount, i);
 
-	currentTrack = 0;
 	while(!osl_quit){
 		song = M3U_getSong(i);
 		snprintf(message, sizeof(message), "%i / %i", i + 1, songCount);
 		int playerReturn = playFile(song->fileName, message, i, startFilePos);
         startFilePos = 0;
-		//Played tracks:
-		int found = 0;
-		int ci = 0;
-		found = 0;
-		for (ci=0; ci<playedTracksNumber; ci++){
-			if (playedTracks[ci] == i){
-				found = 1;
-				break;
-			}
-		}
-		if (!found){
-			playedTracks[playedTracksNumber] = i;
-			playedTracksNumber++;
+		int shuffleOn = shuffled && (userSettings->playMode == MODE_SHUFFLE || userSettings->playMode == MODE_SHUFFLE_REPEAT);
+		//Shuffle switched on while playing: start a new order from this track:
+		if (shuffleOn && shuffled[shufflePos] != i){
+			shuffleOrder(shuffled, songCount, i);
+			shufflePos = 0;
 		}
 		if (playerReturn == PLAYER_STOP){
 			break;
@@ -1012,21 +1007,15 @@ int playPlaylist(struct M3U_playList *playList, int startIndex, double startFile
             if (playerReturn == PLAYER_END && userSettings->playMode == MODE_REPEAT)
                 continue;
 			//Controllo se sono in shuffle:
-			if (userSettings->playMode == MODE_SHUFFLE || userSettings->playMode == MODE_SHUFFLE_REPEAT){
-				if (currentTrack < playedTracksNumber - 1 && playerReturn == PLAYER_NEXT){
-					i = playedTracks[++currentTrack];
-				}else{
-					i = randomTrack(songCount, playedTracksNumber, playedTracks);
-					if (i == -1){
-                        if (userSettings->playMode == MODE_SHUFFLE_REPEAT){
-                            playedTracksNumber = 0;
-                            memset(playedTracks, 0, songCount);
-                            i = randomTrack(songCount, playedTracksNumber, playedTracks);
-                        }else
-						  break;
-					}
-					currentTrack++;
+			if (shuffleOn){
+				if (++shufflePos >= songCount){
+                    if (userSettings->playMode == MODE_SHUFFLE_REPEAT){
+                        shuffleOrder(shuffled, songCount, -1);
+                        shufflePos = 0;
+                    }else
+						break;
 				}
+				i = shuffled[shufflePos];
 			}else{
 				//Controllo se è finita la playlist e non sono in repeat:
 				if ((playerReturn == PLAYER_END) & (i == songCount - 1) & (userSettings->playMode != MODE_REPEAT_ALL)){
@@ -1037,23 +1026,21 @@ int playPlaylist(struct M3U_playList *playList, int startIndex, double startFile
 				if (i > songCount - 1){
 					i = 0;
 				}
-				currentTrack = i;
 			}
 		}else if (playerReturn == PLAYER_PREVIOUS){
 			//Controllo se sono in shuffle:
-			if (userSettings->playMode == MODE_SHUFFLE || userSettings->playMode == MODE_SHUFFLE_REPEAT){
-				if (currentTrack){
-					i = playedTracks[--currentTrack];
-				}
+			if (shuffleOn){
+				if (shufflePos)
+					i = shuffled[--shufflePos];
 			}else{
 				i--;
 				if (i < 0){
 					i = songCount - 1;
 				}
-				currentTrack = i;
 			}
 		}
     }
+	free(shuffled);
 
     ML_commitTransaction();
 	if (!userSettings->displayStatus){

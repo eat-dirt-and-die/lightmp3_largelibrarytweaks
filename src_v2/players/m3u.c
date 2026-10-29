@@ -28,6 +28,22 @@
 static struct M3U_playList lPlayList;
 static struct M3U_songEntry emptySong;
 
+//Make room for at least "count" song slots (new slots start out NULL):
+static int ensureSongSlots(int count){
+	if (count <= lPlayList.songsAllocated)
+		return 0;
+	int newSize = lPlayList.songsAllocated ? lPlayList.songsAllocated : 256;
+	while (newSize < count)
+		newSize *= 2;
+	struct M3U_songEntry **bigger = realloc(lPlayList.songs, sizeof(struct M3U_songEntry *) * newSize);
+	if (!bigger)
+		return -1;
+	memset(bigger + lPlayList.songsAllocated, 0, sizeof(struct M3U_songEntry *) * (newSize - lPlayList.songsAllocated));
+	lPlayList.songs = bigger;
+	lPlayList.songsAllocated = newSize;
+	return 0;
+}
+
 //Split song length and title:
 int splitSongInfo(char *text, char *chrLength, char *title){
 	strcpy(chrLength, "");
@@ -102,6 +118,8 @@ int M3U_open(char *fileName){
 			//Nothing to do. :)
 		}else if (strlen(lineText) > 2){
 			//Store song info:
+            if (ensureSongSlots(playListCount + 1))
+                break;
             if (!lPlayList.songs[playListCount])
                 lPlayList.songs[playListCount] = malloc(sizeof(struct M3U_songEntry));
 			singleEntry = lPlayList.songs[playListCount++];
@@ -123,9 +141,6 @@ int M3U_open(char *fileName){
 			}
 			singleEntry->title[263] = '\0';
 			singleEntry->length = atoi(chrLength);
-			if (playListCount == MAX_SONGS){
-				break;
-			}
 		}
 	}
 	fclose(f);
@@ -254,7 +269,7 @@ int M3U_removeSong(int index){
 
 //Add a song to the playlist:
 int M3U_addSong(char *fileName, int length, char *title){
-	if (lPlayList.songCount < MAX_SONGS){
+	if (!ensureSongSlots(lPlayList.songCount + 1)){
         if (!lPlayList.songs[lPlayList.songCount])
             lPlayList.songs[lPlayList.songCount] = malloc(sizeof(struct M3U_songEntry));
 		struct M3U_songEntry *entry = lPlayList.songs[lPlayList.songCount];
@@ -285,10 +300,11 @@ int M3U_forceModified(int modified){
 //Clear playlist:
 int M3U_clear(){
 	int i;
-	for (i=0; i < lPlayList.songCount; i++){
-        if (lPlayList.songs[i])
+	for (i=0; i < lPlayList.songsAllocated; i++){
+        if (lPlayList.songs[i]){
             free(lPlayList.songs[i]);
             lPlayList.songs[i] = NULL;
+        }
 	}
 	lPlayList.songCount = 0;
 	strcpy(lPlayList.fileName, "");

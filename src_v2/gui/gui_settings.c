@@ -116,6 +116,9 @@ int getSettingVal(int index, char *value, int valueLimit){
 		case 18:
             snprintf(value, valueLimit, "%s", yesNo[userSettings->HOLD_DISPLAYOFF]);
             break;
+        case 19:
+            snprintf(value, valueLimit, "%s", yesNo[userSettings->shuffleAllOnStart]);
+            break;
 	}
 
     return 0;
@@ -169,7 +172,7 @@ int buildSettingsMenu(struct menuElements *menu, struct menuElements *values){
     char name[100] = "";
     char settingVal[50] = "";
 
-    menu->numberOfElements = 19;
+    menu->numberOfElements = 20;
 
     values->first = menu->first;
     values->selected = menu->selected;
@@ -398,6 +401,9 @@ int changeSettingVal(int index, int delta){
             break;
 		case 18:
             userSettings->HOLD_DISPLAYOFF = !userSettings->HOLD_DISPLAYOFF;
+            break;
+        case 19:
+            userSettings->shuffleAllOnStart = !userSettings->shuffleAllOnStart;
             break;
     }
     return 0;

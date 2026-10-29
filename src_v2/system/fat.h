@@ -121,6 +121,8 @@ extern "C" {
 int fat_init(int devkitVersion);
 int fat_locate(const char * name, char * sname, u32 clus, p_fat_entry info);
 u32 fat_readdir(const char * dir, char * sdir, p_fat_info * info);
+int fat_hold();
+void fat_release();
 void fat_free();
 
 #ifdef __cplusplus

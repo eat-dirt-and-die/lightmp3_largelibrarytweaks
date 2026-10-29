@@ -56,6 +56,8 @@ int buildMenuFromPlaylist(struct menuElements *menu){
     menu->first = 0;
     menu->selected = 0;
     menu->numberOfElements = M3U_getSongCount();
+    if (menu->numberOfElements > MENU_MAX_ELEMENTS)
+        menu->numberOfElements = MENU_MAX_ELEMENTS;
     for (i=0; i<menu->numberOfElements; i++){
         entry = M3U_getSong(i);
         if (menu->elements[i]){

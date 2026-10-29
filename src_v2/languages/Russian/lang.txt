@@ -237,3 +237,6 @@ SETTINGS_19=Отключать экран при переключении на H
 
 LOADING_LANGUAGE_TITLE=Пожалуста, подождите
 LOADING_LANGUAGE=Загружаю другой язык
+SHUFFLE_ALL=Shuffle All
+SETTINGS_20=Shuffle All on start
+HELP_FILE_BROWSER_06=Triangle to shuffle directory + subfolders

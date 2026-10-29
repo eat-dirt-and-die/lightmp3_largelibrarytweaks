@@ -236,3 +236,6 @@ SETTINGS_19=Display Off on Hold
 
 LOADING_LANGUAGE_TITLE=Please Wait
 LOADING_LANGUAGE=Loading new language
+SHUFFLE_ALL=Shuffle All
+SETTINGS_20=Shuffle All on start
+HELP_FILE_BROWSER_06=Triangle to shuffle directory + subfolders

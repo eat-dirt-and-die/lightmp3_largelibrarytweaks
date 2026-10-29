@@ -77,6 +77,8 @@ struct settings{
     int playlistStartIndex;
 
     char mediaLibraryRoot[264];
+    char mediaLibraryExclude[1024]; //Folders skipped by the library scan and Shuffle All (';' separated)
+    int shuffleAllOnStart;
     int shutDownAfterBookmark;
     int HOLD_DISPLAYOFF;
     int frameskip;

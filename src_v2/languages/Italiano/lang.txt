@@ -238,3 +238,6 @@ SETTINGS_19=Display Off on Hold
 
 LOADING_LANGUAGE_TITLE=Please Wait
 LOADING_LANGUAGE=Loading new language
+SHUFFLE_ALL=Riproduzione casuale di tutto
+SETTINGS_20=Riproduzione casuale all'avvio
+HELP_FILE_BROWSER_06=Triangolo per riproduzione casuale cartella + sottocartelle

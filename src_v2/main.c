@@ -33,6 +33,7 @@
 #include "gui/gui_player.h"
 #include "gui/gui_settings.h"
 #include "gui/gui_mediaLibrary.h"
+#include "gui/shuffleAll.h"
 
 #include "system/exception.h"
 #include "system/clock.h"
@@ -487,6 +488,12 @@ int main(){
             strcpy(userSettings->selectedBrowserItemShort, buffer);
             strcpy(userSettings->selectedBrowserItem, buffer);
         }
+    }
+
+    //Shuffle All on start (SHUFFLE_ALL_ON_START=1): jump straight into shuffling ML_ROOT:
+    if (currentMode != MODE_PLAYER && userSettings->shuffleAllOnStart){
+        if (shuffleAll(userSettings->mediaLibraryRoot, userSettings->mediaLibraryRoot, currentMode) > 0)
+            currentMode = MODE_PLAYER;
     }
 
     //debugFreeMemory();

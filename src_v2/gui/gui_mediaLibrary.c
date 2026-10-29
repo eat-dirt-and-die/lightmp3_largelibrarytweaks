@@ -29,6 +29,7 @@
 #include "settings.h"
 #include "skinsettings.h"
 #include "menu.h"
+#include "shuffleAll.h"
 #include "../others/strreplace.h"
 #include "../others/medialibrary.h"
 #include "../system/clock.h"
@@ -253,7 +254,7 @@ int scanMS(){
 
 	cpuBoost();
 	ML_checkFiles(checkFileCallback);
-    int found = ML_scanMS(userSettings->mediaLibraryRoot, fileExt, fileExtCount-1, scanDirCallback, NULL);
+    int found = ML_scanMS(userSettings->mediaLibraryRoot, fileExt, fileExtCount-1, userSettings->mediaLibraryExclude, scanDirCallback, NULL);
     cpuRestore();
 
     snprintf(strFound, sizeof(strFound), "%i", found);
@@ -656,6 +657,15 @@ int restoreQuery()
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Browse all:
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+int shuffleAllLibrary(){
+    if (shuffleAll(userSettings->mediaLibraryRoot, userSettings->mediaLibraryRoot, MODE_MEDIA_LIBRARY) > 0){
+        mediaLibraryRetValue = MODE_PLAYER;
+        exitFlagMediaLibrary = 1;
+    }
+    oslReadKeys();
+    return 0;
+}
+
 int browseAll(){
     changeQuery(QUERY_SINGLE_ENTRY, "Select media.*, \
                                             title || ' - ' || artist || ' (' || album || ')' as strfield,  \
@@ -846,16 +856,17 @@ int buildMainMenu(){
     commonMenu.first = 0;
     commonMenu.selected = 0;
 
-    addMenuElement(0, langGetString("BROWSE_ALL"), browseAll);
-    addMenuElement(1, langGetString("BROWSE_ARTIST"), browseByArtist);
-    addMenuElement(2, langGetString("BROWSE_ALBUM"), browseByAlbum);
-    addMenuElement(3, langGetString("BROWSE_GENRE"), browseByGenre);
-    addMenuElement(4, langGetString("BROWSE_RATING"), browseByRating);
-    addMenuElement(5, langGetString("BROWSE_TOP100"), browseTop100);
-    addMenuElement(6, langGetString("SEARCH"), search);
-    addMenuElement(7, langGetString("SCAN_MS"), NULL);
+    addMenuElement(0, langGetString("SHUFFLE_ALL"), shuffleAllLibrary);
+    addMenuElement(1, langGetString("BROWSE_ALL"), browseAll);
+    addMenuElement(2, langGetString("BROWSE_ARTIST"), browseByArtist);
+    addMenuElement(3, langGetString("BROWSE_ALBUM"), browseByAlbum);
+    addMenuElement(4, langGetString("BROWSE_GENRE"), browseByGenre);
+    addMenuElement(5, langGetString("BROWSE_RATING"), browseByRating);
+    addMenuElement(6, langGetString("BROWSE_TOP100"), browseTop100);
+    addMenuElement(7, langGetString("SEARCH"), search);
+    addMenuElement(8, langGetString("SCAN_MS"), NULL);
 
-    commonMenu.numberOfElements = 8;
+    commonMenu.numberOfElements = 9;
     return 0;
 }
 
@@ -998,7 +1009,7 @@ int gui_mediaLibrary(){
                 confirmStatus = STATUS_HELP;
             }else if(mediaLibraryStatus == STATUS_QUERYMENU && osl_pad.released.triangle && mlQueryType == QUERY_SINGLE_ENTRY){
                 showOrderByMenu();
-            }else if(mediaLibraryStatus == STATUS_MAINMENU && getConfirmButton() && commonMenu.selected == 7){
+            }else if(mediaLibraryStatus == STATUS_MAINMENU && getConfirmButton() && commonMenu.selected == 8){
                 confirmStatus = STATUS_CONFIRM_SCAN;
             }else if(osl_pad.released.start && mediaLibraryStatus == STATUS_QUERYMENU && commonMenu.numberOfElements){
                 addSelectionToPlaylist(commonMenu.elements[commonMenu.selected]->data, "artist, album, tracknumber, title", 0, tempM3Ufile);

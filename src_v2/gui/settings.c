@@ -40,7 +40,7 @@ int readRGBA(int *RGBA, char *string){
 //Load settings from file:
 int SETTINGS_load(char *fileName){
 	FILE *f;
-	char lineText[256];
+	char lineText[1100];
 
 	f = fopen(fileName, "rt");
 	if (f == NULL){
@@ -49,9 +49,9 @@ int SETTINGS_load(char *fileName){
 	}
 
     SETTINGS_default();
-	while(fgets(lineText, 256, f) != NULL){
+	while(fgets(lineText, sizeof(lineText), f) != NULL){
 		int element = 0;
-		char parName[10] = "";
+		char parName[64] = "";
 		if (strlen(lineText) > 0){
 			if (lineText[0] != '#'){
                 //Tolgo caratteri di termine riga:
@@ -66,7 +66,7 @@ int SETTINGS_load(char *fileName){
 				while(result != NULL){
 					if (strlen(result) > 0){
 						if (element == 0){
-							strcpy(parName, result);
+							snprintf(parName, sizeof(parName), "%s", result);
 						}else if (element == 1){
                             if (strcmp(parName, "LANG") == 0){
 								strcpy(localSettings.lang, result);
@@ -124,6 +124,10 @@ int SETTINGS_load(char *fileName){
 								localSettings.SHOW_SPLASH = atoi(result);
 							}else if (strcmp(parName, "ML_ROOT") == 0){
 								strcpy(localSettings.mediaLibraryRoot, result);
+							}else if (strcmp(parName, "ML_EXCLUDE") == 0){
+								snprintf(localSettings.mediaLibraryExclude, sizeof(localSettings.mediaLibraryExclude), "%s", result);
+							}else if (strcmp(parName, "SHUFFLE_ALL_ON_START") == 0){
+								localSettings.shuffleAllOnStart = atoi(result);
 							}else if (strcmp(parName, "SHUTDOWN_AFTER_BOOKMARK") == 0){
 								localSettings.shutDownAfterBookmark = atoi(result);
 							}else if (strcmp(parName, "HOLD_DISPLAYOFF") == 0){
@@ -192,6 +196,8 @@ struct settings *SETTINGS_default(){
 
     //Media Library settings:
     strcpy(localSettings.mediaLibraryRoot, "ms0:/");
+    strcpy(localSettings.mediaLibraryExclude, "");
+    localSettings.shuffleAllOnStart = 0;
 
     localSettings.shutDownAfterBookmark = 0;
     localSettings.HOLD_DISPLAYOFF = 0;
@@ -202,7 +208,7 @@ struct settings *SETTINGS_default(){
 //Save settings:
 int SETTINGS_save(struct settings tSettings){
 	FILE *f;
-	char testo[256];
+	char testo[1100];
 
 	f = fopen(tSettings.fileName, "w");
 	if (f == NULL){
@@ -265,6 +271,10 @@ int SETTINGS_save(struct settings tSettings){
     snprintf(testo, sizeof(testo), "SHOW_SPLASH=%i\n", tSettings.SHOW_SPLASH);
     fwrite(testo, 1, strlen(testo), f);
     snprintf(testo, sizeof(testo), "ML_ROOT=%s\n", tSettings.mediaLibraryRoot);
+    fwrite(testo, 1, strlen(testo), f);
+    snprintf(testo, sizeof(testo), "ML_EXCLUDE=%s\n", tSettings.mediaLibraryExclude);
+    fwrite(testo, 1, strlen(testo), f);
+    snprintf(testo, sizeof(testo), "SHUFFLE_ALL_ON_START=%i\n", tSettings.shuffleAllOnStart);
     fwrite(testo, 1, strlen(testo), f);
     snprintf(testo, sizeof(testo), "SHUTDOWN_AFTER_BOOKMARK=%i\n", tSettings.shutDownAfterBookmark);
     fwrite(testo, 1, strlen(testo), f);

@@ -29,6 +29,7 @@
 #include "settings.h"
 #include "skinsettings.h"
 #include "menu.h"
+#include "shuffleAll.h"
 #include "../system/opendir.h"
 #include "../system/clock.h"
 #include "../players/player.h"
@@ -369,6 +370,19 @@ int gui_fileBrowser(){
 					}
                     fileBrowserRetValue = MODE_PLAYER;
                     userSettings->previousMode = MODE_FILEBROWSER;
+                    exitFlagFileBrowser = 1;
+                }
+            }else if(!USBactive && osl_pad.released.triangle && commonMenu.numberOfElements && FIO_S_ISDIR(directory.directory_entry[commonMenu.selected].d_stat.st_mode)){
+                //Shuffle directory and all its subfolders:
+                if (curDir[strlen(curDir)-1] != '/'){
+                    snprintf(buffer, sizeof(buffer), "%s/%s", curDir, directory.directory_entry[commonMenu.selected].longname);
+                    snprintf(bufferShort, sizeof(bufferShort), "%s/%s", curDirShort, directory.directory_entry[commonMenu.selected].d_name);
+				}else{
+                    snprintf(buffer, sizeof(buffer), "%s%s", curDir, directory.directory_entry[commonMenu.selected].longname);
+                    snprintf(bufferShort, sizeof(bufferShort), "%s%s", curDirShort, directory.directory_entry[commonMenu.selected].d_name);
+				}
+                if (shuffleAll(buffer, bufferShort, MODE_FILEBROWSER) > 0){
+                    fileBrowserRetValue = MODE_PLAYER;
                     exitFlagFileBrowser = 1;
                 }
             }else if(!USBactive && getCancelButton()){
