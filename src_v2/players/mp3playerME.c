@@ -255,9 +255,13 @@ int decodeThread(SceSize args, void *argp){
 		    MP3ME_info.framesDecoded++;
 
             //Output:
+			//sample_per_frame*4 bytes = sample_per_frame*2 shorts (16-bit stereo). Each
+			//output call plays OUTPUT_BUFFER_SIZE/4 samples (1152 = one MPEG-1 frame or
+			//two MPEG-2/2.5 frames); the pointer used to advance twice as far as the
+			//data copied, which dropped every other MPEG-2 frame.
 			memcpy( OutputPtrME, MP3ME_output_buffer, sample_per_frame*4);
-			OutputPtrME += (sample_per_frame * 4);
-			if( OutputPtrME + (sample_per_frame * 4) > &OutputBuffer[OutputBuffer_flip][OUTPUT_BUFFER_SIZE])
+			OutputPtrME += (sample_per_frame * 2);
+			if( OutputPtrME + (sample_per_frame * 2) > &OutputBuffer[OutputBuffer_flip][OUTPUT_BUFFER_SIZE/2])
 			{
 				//Volume Boost:
 				if (MP3ME_volume_boost){
@@ -359,7 +363,8 @@ int MP3MEgetInfo(){
     sceIoLseek(fd, 0, PSP_SEEK_SET);
 
     MP3ME_tagsize = ID3v2TagSize(MP3ME_fileName);
-	double startPos = MP3ME_tagsize;
+	//ID3v2TagSize() is the tag body; the audio starts after the 10-byte tag header:
+	double startPos = MP3ME_tagsize ? MP3ME_tagsize + 10 : 0;
 	sceIoLseek32(fd, startPos, PSP_SEEK_SET);
 
     //Check for xing frame:
@@ -377,6 +382,8 @@ int MP3MEgetInfo(){
         }
         free(xing_buffer);
         xing_buffer = NULL;
+        //Read the frame headers from the first frame again, not 300 bytes in:
+        sceIoLseek32(fd, startPos, PSP_SEEK_SET);
     }
 
     size -= startPos;
@@ -395,6 +402,9 @@ int MP3MEgetInfo(){
 
     double totalBitrate = 0;
     int i = 0;
+    int infoSet = 0;
+    int lastRate = 0;
+    int lastLayer = -1;
 
 	for (i=0; i<3; i++){
         memset(localBuffer, 0, bufferSize);
@@ -411,8 +421,15 @@ int MP3MEgetInfo(){
     				break;
     			}
     		}
-    		//Informazioni solo dal primo frame:
-    	    if (FrameCount++ == 0){
+    		//Informazioni solo dal primo frame. Random data (e.g. cover art)
+    		//can look like a frame header, so only trust one when the next
+    		//header agrees with it; a wrong sample rate plays the song slowed down.
+    		FrameCount++;
+    	    if (!infoSet && (header.samplerate != lastRate || (int)header.layer != lastLayer)){
+    	        lastRate = header.samplerate;
+    	        lastLayer = header.layer;
+    	    }else if (!infoSet){
+    	        infoSet = 1;
     			switch (header.layer) {
     			case MAD_LAYER_I:
     				strcpy(MP3ME_info.layer,"I");
@@ -488,6 +505,9 @@ int MP3MEgetInfo(){
         if (timeFromID3 || has_xing)
             break;
 	}
+	//Too short to find two matching headers: use the last one seen.
+	if (!infoSet && lastRate)
+		MP3ME_info.hz = lastRate;
 	mad_header_finish (&header);
 	mad_stream_finish (&stream);
     if (buff){

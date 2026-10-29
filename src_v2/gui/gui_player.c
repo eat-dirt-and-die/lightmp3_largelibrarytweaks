@@ -463,13 +463,18 @@ int playFile(char *fileName, char *trackMessage, int index, double startFilePos)
                 strcpy(libEntry->shortpath, fileName);
             }
             else
-            {
-                ML_clearEntry(libEntry);
                 update = 0;
-            }
         }
         else
-            ML_clearEntry(libEntry);
+            update = 0;
+    }
+    //Not in the library yet: start a blank entry (it's added when the track ends).
+    //This used to clear a NULL pointer and crash.
+    if (update <= 0){
+        static struct libraryEntry newEntry;
+        ML_clearEntry(&newEntry);
+        libEntry = &newEntry;
+        update = 0;
     }
 
     //Load coverart:

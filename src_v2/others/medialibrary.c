@@ -68,6 +68,17 @@ int ML_INTERNAL_openDB(char *directory, char *fileName){
         return ML_ERROR_SQL;
     }
 
+    //Keep SQLite's temporary files (statement journals, sort tables) in memory.
+    //The PSP file layer in pspdev's SQLite crashes when it closes a
+    //delete-on-close temp file (it calls sqlite3OsDelete with a NULL VFS),
+    //which happened when stopping playback after play counts were updated.
+    result = sqlite3_exec(db, "PRAGMA temp_store=MEMORY", NULL, 0, &zErr);
+    if (result != SQLITE_OK){
+        sqlite3_free(zErr);
+        ML_INTERNAL_closeDB();
+        return ML_ERROR_SQL;
+    }
+
     return 0;
 }
 
