@@ -133,7 +133,8 @@ int gui_playlistsBrowser(){
 		if (!skip){
 			oslStartDrawing();
 
-			if (commonMenu.selected >= 0 && strcmp(buffer, commonMenu.elements[commonMenu.selected]->text)){
+			//No playlists (e.g. a fresh install): nothing selected to load
+			if (commonMenu.numberOfElements && commonMenu.selected >= 0 && strcmp(buffer, commonMenu.elements[commonMenu.selected]->text)){
 				snprintf(buffer, sizeof(buffer), "%s/%s", playlistsDir, commonMenu.elements[commonMenu.selected]->text);
 				M3U_clear();
 				M3U_open(buffer);
