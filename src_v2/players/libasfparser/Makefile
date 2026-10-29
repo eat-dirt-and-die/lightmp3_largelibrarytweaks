@@ -14,3 +14,4 @@ clean:
 	rm -f *.o
 	rm -f *.bak
 	rm -f ../../libpspasfparser.a
+Makefile: ;

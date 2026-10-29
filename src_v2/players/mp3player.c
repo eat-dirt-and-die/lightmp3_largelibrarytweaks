@@ -100,6 +100,11 @@ static double tagsize = 0;
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Applies a frequency-domain filter to audio data in the subband-domain.
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// libmad's MIPS mad_f_mul uses an asm constraint modern GCC rejects, so multiply in C:
+static inline mad_fixed_t filterMul(mad_fixed_t a, mad_fixed_t b){
+    return (mad_fixed_t)(((long long)a * b) >> MAD_F_FRACBITS);
+}
+
 static void ApplyFilter(struct mad_frame *Frame){
     int Channel, Sample, Samples, SubBand;
     /* There is two application loops, each optimized for the number
@@ -112,11 +117,11 @@ static void ApplyFilter(struct mad_frame *Frame){
 	    for (Sample = 0; Sample < Samples; Sample++)
 		for (SubBand = 0; SubBand < 32; SubBand++)
 			Frame->sbsample[Channel][Sample][SubBand] =
-			mad_f_mul(Frame->sbsample[Channel][Sample][SubBand], Filter[SubBand]);
+			filterMul(Frame->sbsample[Channel][Sample][SubBand], Filter[SubBand]);
     else
 	for (Sample = 0; Sample < Samples; Sample++)
 	    for (SubBand = 0; SubBand < 32; SubBand++)
-			Frame->sbsample[0][Sample][SubBand] = mad_f_mul(Frame->sbsample[0][Sample][SubBand], Filter[SubBand]);
+			Frame->sbsample[0][Sample][SubBand] = filterMul(Frame->sbsample[0][Sample][SubBand], Filter[SubBand]);
 }
 
 

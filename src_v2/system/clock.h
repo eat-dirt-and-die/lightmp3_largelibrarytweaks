@@ -16,6 +16,10 @@
 //    along with this program; if not, write to the Free Software
 //    Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 
+#ifndef PSP_MODEL_SLIM_AND_LITE
+#define PSP_MODEL_SLIM_AND_LITE 1 // dropped from newer kubridge.h
+#endif
+
 void setBusClock(int bus);
 void setCpuClock(int cpu);
 int getCpuClock();

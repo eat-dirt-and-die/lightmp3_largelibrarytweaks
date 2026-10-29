@@ -122,7 +122,7 @@ int drawFileInfo(struct fileInfo *info, struct libraryEntry *libEntry, char *tra
             setFontStyle(fontNormal, defaultTextSize, RGBA(tempColor[0], tempColor[1], tempColor[2], tempColor[3]), RGBA(tempColorShadow[0], tempColorShadow[1], tempColorShadow[2], tempColorShadow[3]), INTRAFONT_SCROLL_SEESAW);
             if (scrollTitleX < 0)
                 scrollTitleX = 2 + tempPos[0] + titleWidth / 2.0f;
-            scrollTitleX = oslIntraFontPrintColumn(fontNormal, scrollTitleX, tempPos[1], titleWidth, 0, info->title);
+            scrollTitleX = oslIntraFontPrintColumn(fontNormal, scrollTitleX, tempPos[1], titleWidth, info->title);
             setFontStyle(fontNormal, defaultTextSize, RGBA(tempColor[0], tempColor[1], tempColor[2], tempColor[3]), RGBA(tempColorShadow[0], tempColorShadow[1], tempColorShadow[2], tempColorShadow[3]), INTRAFONT_ALIGN_LEFT);
         }else
             oslDrawStringLimited(tempPos[0], tempPos[1], titleWidth, info->title);

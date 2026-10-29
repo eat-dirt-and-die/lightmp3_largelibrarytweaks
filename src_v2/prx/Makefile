@@ -13,7 +13,7 @@ PRX_EXPORTS = support.exp
 USE_KERNEL_LIBS=1
 
 LIBDIR =
-LDFLAGS = -mno-crt0 -nostartfiles
+LDFLAGS = -nostartfiles
 LIBS = -lpsppower_driver -lpspsystemctrl_kernel
 
 PSPSDK=$(shell psp-config --pspsdk-path)

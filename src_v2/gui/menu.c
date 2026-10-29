@@ -199,9 +199,9 @@ int drawMenu(struct menuElements *menu){
                 if (i == menu->selected && textLength > menu->width){
                     if (!menu->elements[i]->xPos)
                         menu->elements[i]->xPos = xPos + 1 + (menu->width - (xPos - menu->xPos)) / 2.0f;
-                    menu->elements[i]->xPos = oslIntraFontPrintColumn(fontMenuNormal, menu->elements[i]->xPos, yPos, menu->width  - (xPos - menu->xPos) - 8, 0, menu->elements[i]->text);
+                    menu->elements[i]->xPos = oslIntraFontPrintColumn(fontMenuNormal, menu->elements[i]->xPos, yPos, menu->width  - (xPos - menu->xPos) - 8, menu->elements[i]->text);
                 }else{
-                    oslIntraFontPrintColumn(fontMenuNormal, xPos, yPos, menu->width - (xPos - menu->xPos), 0, menu->elements[i]->text);
+                    oslIntraFontPrintColumn(fontMenuNormal, xPos, yPos, menu->width - (xPos - menu->xPos), menu->elements[i]->text);
                 }
             }else{
                 oslDrawStringLimited(xPos, yPos, menu->width - (xPos - menu->xPos), menu->elements[i]->text);

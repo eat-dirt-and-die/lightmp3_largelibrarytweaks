@@ -337,9 +337,9 @@ int drawToolbars(){
     oslDrawString(tempPos[0], tempPos[1], buffer);
 
 	//Time:
-    pspTime currTime;
+    ScePspDateTime currTime;
     sceRtcGetCurrentClockLocalTime(&currTime);
-	snprintf(buffer, sizeof(buffer), "%2.2d/%2.2d/%4.4d %2.2d:%2.2d", currTime.day, currTime.month, currTime.year, currTime.hour, currTime.minutes);
+	snprintf(buffer, sizeof(buffer), "%2.2d/%2.2d/%4.4d %2.2d:%2.2d", currTime.day, currTime.month, currTime.year, currTime.hour, currTime.minute);
     skinGetPosition("POS_CLOCK_TEXT", tempPos);
     oslDrawString(tempPos[0], tempPos[1], buffer);
 
@@ -661,7 +661,7 @@ int initFonts(){
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 void setFontStyle(OSL_FONT *f, float size, unsigned int color, unsigned int shadowColor, unsigned int options){
 	if (f->fontType == OSL_FONT_INTRA)
-	    oslIntraFontSetStyle(f, size, color, shadowColor, options);
+	    oslIntraFontSetStyle(f, size, color, shadowColor, 0.0f, options);
 	else
 		oslSetTextColor(color);
 }

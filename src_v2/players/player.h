@@ -38,7 +38,7 @@
 #include "oggplayer.h"
 #include "flacplayer.h"
 #include "aacplayer.h"
-#include "wmaplayerme.h"
+#include "wmaplayerME.h"
 
 #define OPENING_OK 0
 #define ERROR_OPENING -1

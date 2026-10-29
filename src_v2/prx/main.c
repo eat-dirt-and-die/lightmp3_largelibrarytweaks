@@ -23,6 +23,7 @@
 #include <pspctrl.h>
 #include <pspsysmem_kernel.h>
 #include <psppower.h>
+#include <systemctrl.h>
 
 PSP_MODULE_INFO("supportlib", 0x1006, 1, 1);
 PSP_MAIN_THREAD_ATTR(0);
