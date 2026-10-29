@@ -1,3 +1,52 @@
+# LightMP3 - large library fork
+
+This fork fixes LightMP3 for big music libraries (thousands of songs, hundreds
+of folders) and adds a one-button "Shuffle All". The source is in src_v2.
+
+WHAT'S CHANGED
+--------------
+-Fixed: crash when scanning a library with more than 500 folders
+-Fixed: library scans were very slow on big Memory Sticks (the FAT table was
+        re-read for every folder, and every song's tags were re-read on rescans)
+-Fixed: playlists were cut off at 5000 songs
+-Fixed: shuffle got slower the longer it played; skipping is now instant and
+        no song repeats until every song has played
+-Added: Shuffle All
+        - Media Library > Shuffle All: shuffles everything in ML_ROOT
+        - File browser: press TRIANGLE on a folder to shuffle it and all its
+          subfolders
+        - Settings > "Shuffle All on start" (SHUFFLE_ALL_ON_START=1): start
+          shuffling ML_ROOT as soon as the app opens
+        Shuffle All doesn't need a library scan.
+-Added: ML_EXCLUDE setting to skip folders (see below)
+-Builds with the current pspdev toolchain
+
+INSTALL / UPDATE
+----------------
+Copy the LightMP3 folder from the release zip to ms0:/PSP/GAME/ (overwrite an
+existing install; your settings, library and scrobbler log are kept).
+
+MUSIC FOLDER AND EXCLUDED FOLDERS
+---------------------------------
+Edit the "settings" file in the LightMP3 folder:
+
+ML_ROOT=ms0:/MUSIC/
+ML_EXCLUDE=ms0:/MUSIC/Podcasts;Audiobooks
+SHUFFLE_ALL_ON_START=1
+
+ML_ROOT is the folder the Media Library and Shuffle All use.
+ML_EXCLUDE is a list of folders separated by ';'. A full path (with "ms0:")
+skips that folder and everything in it; a plain name ("Audiobooks") skips any
+folder with that name. Upper/lower case doesn't matter.
+
+BUILDING
+--------
+With pspdev installed (https://github.com/pspdev/pspdev):
+    cd src_v2/players/libasfparser && make && cd ../..
+    cd prx && make && cd ..
+    cd miniconv && make -f Makefile.all && cd ..
+    make
+
 # LightMP3
 ///////////////////////////////////////////////
 //       LightMP3, 2007, 2008 by Sakya       //
