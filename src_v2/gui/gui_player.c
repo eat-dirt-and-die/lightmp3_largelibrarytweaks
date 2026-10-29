@@ -979,15 +979,15 @@ int playPlaylist(struct M3U_playList *playList, int startIndex, double startFile
 	if (songCount > 0)
 		shuffled = malloc(sizeof(int) * songCount);
 
+	if (shuffled)
+		shuffleOrder(shuffled, songCount, startIndex);
+
     if (startIndex >= 0)
         i = startIndex;
-	else if (shuffled && (userSettings->playMode == MODE_SHUFFLE || userSettings->playMode == MODE_SHUFFLE_REPEAT)){
-		shuffleOrder(shuffled, songCount, -1);
+	else if (shuffled && (userSettings->playMode == MODE_SHUFFLE || userSettings->playMode == MODE_SHUFFLE_REPEAT))
 		i = shuffled[0];
-	}else
+	else
 		i = 0;
-	if (shuffled && startIndex >= 0)
-		shuffleOrder(shuffled, songCount, i);
 
 	while(!osl_quit){
 		song = M3U_getSong(i);
@@ -1012,6 +1012,11 @@ int playPlaylist(struct M3U_playList *playList, int startIndex, double startFile
                     if (userSettings->playMode == MODE_SHUFFLE_REPEAT){
                         shuffleOrder(shuffled, songCount, -1);
                         shufflePos = 0;
+                        //Don't start the new round with the track that just played:
+                        if (songCount > 1 && shuffled[0] == i){
+                            shuffled[0] = shuffled[1];
+                            shuffled[1] = i;
+                        }
                     }else
 						break;
 				}
@@ -1210,6 +1215,14 @@ int gui_player(){
     }else if (FIO_S_ISDIR(stat.st_mode)){
         //Directory:
         playDirectory(userSettings->selectedBrowserItem, userSettings->selectedBrowserItemShort, "");
+    }
+
+    //Shuffle All switched shuffle on just for its session; put the old mode back
+    //unless the user changed it while playing:
+    if (userSettings->restorePlayMode >= 0){
+        if (userSettings->playMode == MODE_SHUFFLE_REPEAT)
+            userSettings->playMode = userSettings->restorePlayMode;
+        userSettings->restorePlayMode = -1;
     }
 
     oslDeleteImage(noCoverArt);

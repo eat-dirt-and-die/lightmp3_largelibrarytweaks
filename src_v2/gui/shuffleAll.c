@@ -46,12 +46,27 @@ static void drawProgress(int songs){
     oslSyncFrame();
 }
 
+static void showNoSongs(){
+    while (!osl_quit){
+        oslStartDrawing();
+        drawCommonGraphics();
+        drawMessageBox(langGetString("SHUFFLE_ALL"), langGetString("SHUFFLE_ALL_NONE"));
+        oslEndDrawing();
+        oslEndFrame();
+        oslSyncFrame();
+        oslReadKeys();
+        if (getConfirmButton() || getCancelButton())
+            break;
+    }
+}
+
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Shuffle All: put every song in dirName and its subfolders (except the ones
 // in ML_EXCLUDE) in a playlist and get it ready to play in shuffle mode.
 // No library scan or tag reading is needed, so this is quick even for big
-// libraries. Returns the number of songs found; when > 0 the caller should
-// switch to MODE_PLAYER.
+// libraries. The cancel button stops it.
+// Returns the number of songs found; when > 0 the caller should switch to
+// MODE_PLAYER.
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 int shuffleAll(char *dirName, char *dirNameShort, int fromMode){
     struct shuffleDir current;
@@ -61,6 +76,8 @@ int shuffleAll(char *dirName, char *dirNameShort, int fromMode){
     struct opendir_struct directory;
     char fileName[264] = "";
     unsigned int lastDraw = sceKernelGetSystemTimeLow();
+    int cancelled = 0;
+    int full = 0;
     int i;
 
     cpuBoost();
@@ -75,7 +92,7 @@ int shuffleAll(char *dirName, char *dirNameShort, int fromMode){
     }
 
     opendir_beginBatch();
-    while (dirStackCount > 0 && !osl_quit){
+    while (dirStackCount > 0 && !osl_quit && !cancelled && !full){
         current = dirStack[--dirStackCount];
         if (opendir_open(&directory, current.name, current.shortName, fileExt, fileExtCount - 1, 1) == 0){
             int needSlash = current.name[strlen(current.name) - 1] != '/';
@@ -83,8 +100,10 @@ int shuffleAll(char *dirName, char *dirNameShort, int fromMode){
                 struct dirElement *entry = &directory.directory_entry[i];
                 if (FIO_S_ISREG(entry->d_stat.st_mode)){
                     snprintf(fileName, sizeof(fileName), needSlash ? "%s/%s" : "%s%s", current.shortName, entry->d_name);
-                    if (M3U_addSong(fileName, 0, entry->longname) < 0)
-                        break; //Out of memory: play what we have
+                    if (M3U_addSong(fileName, 0, entry->longname) < 0){
+                        full = 1; //Out of memory: play what we have
+                        break;
+                    }
                 }else if (FIO_S_ISDIR(entry->d_stat.st_mode)){
                     if (dirStackCount == dirStackSize){
                         struct shuffleDir *bigger = realloc(dirStack, sizeof(struct shuffleDir) * dirStackSize * 2);
@@ -105,13 +124,16 @@ int shuffleAll(char *dirName, char *dirNameShort, int fromMode){
 
         if (sceKernelGetSystemTimeLow() - lastDraw > PROGRESS_INTERVAL){
             drawProgress(M3U_getSongCount());
+            oslReadKeys();
+            if (getCancelButton())
+                cancelled = 1;
             lastDraw = sceKernelGetSystemTimeLow();
         }
     }
     opendir_endBatch();
     free(dirStack);
 
-    int count = M3U_getSongCount();
+    int count = cancelled ? 0 : M3U_getSongCount();
     if (count > 0){
         drawProgress(count);
         M3U_save(MLtempM3Ufile);
@@ -119,10 +141,15 @@ int shuffleAll(char *dirName, char *dirNameShort, int fromMode){
         snprintf(userSettings->selectedBrowserItemShort, sizeof(userSettings->selectedBrowserItemShort), "%s", MLtempM3Ufile);
         userSettings->playlistStartIndex = -1;
         userSettings->previousMode = fromMode;
-        if (userSettings->playMode != MODE_SHUFFLE && userSettings->playMode != MODE_SHUFFLE_REPEAT)
+        if (userSettings->playMode != MODE_SHUFFLE && userSettings->playMode != MODE_SHUFFLE_REPEAT){
+            userSettings->restorePlayMode = userSettings->playMode;
             userSettings->playMode = MODE_SHUFFLE_REPEAT;
+        }
     }
     M3U_clear();
+    if (!count && !cancelled && !osl_quit)
+        showNoSongs();
+    oslReadKeys();
     cpuRestore();
     return count;
 }

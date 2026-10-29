@@ -69,15 +69,15 @@ int SETTINGS_load(char *fileName){
 							snprintf(parName, sizeof(parName), "%s", result);
 						}else if (element == 1){
                             if (strcmp(parName, "LANG") == 0){
-								strcpy(localSettings.lang, result);
+								snprintf(localSettings.lang, sizeof(localSettings.lang), "%s", result);
                             }else if (strcmp(parName, "CPU") == 0){
 								localSettings.CPU = atoi(result);
 							}else if (strcmp(parName, "BUS") == 0){
 								localSettings.BUS = atoi(result);
 							}else if (strcmp(parName, "EQ") == 0){
-								strcpy(localSettings.EQ, result);
+								snprintf(localSettings.EQ, sizeof(localSettings.EQ), "%s", result);
 							}else if (strcmp(parName, "BOOST") == 0){
-								strcpy(localSettings.BOOST, result);
+								snprintf(localSettings.BOOST, sizeof(localSettings.BOOST), "%s", result);
 							}else if (strcmp(parName, "BOOST_VALUE") == 0){
 								localSettings.BOOST_VALUE = atoi(result);
 							}else if (strcmp(parName, "SCROBBLER") == 0){
@@ -115,7 +115,7 @@ int SETTINGS_load(char *fileName){
                             }else if (strcmp(parName, "CLOCK_DELTA_ECONOMY_MODE") == 0){
 								localSettings.CLOCK_DELTA_ECONOMY_MODE = atoi(result);
 							}else if (strcmp(parName, "SKIN") == 0){
-								strcpy(localSettings.skinName, result);
+								snprintf(localSettings.skinName, sizeof(localSettings.skinName), "%s", result);
 							}else if (strcmp(parName, "KEY_AUTOREPEAT_PLAYER") == 0){
 								localSettings.KEY_AUTOREPEAT_PLAYER = atoi(result);
 							}else if (strcmp(parName, "KEY_AUTOREPEAT_GUI") == 0){
@@ -123,11 +123,11 @@ int SETTINGS_load(char *fileName){
 							}else if (strcmp(parName, "SHOW_SPLASH") == 0){
 								localSettings.SHOW_SPLASH = atoi(result);
 							}else if (strcmp(parName, "ML_ROOT") == 0){
-								strcpy(localSettings.mediaLibraryRoot, result);
+								snprintf(localSettings.mediaLibraryRoot, sizeof(localSettings.mediaLibraryRoot), "%s", result);
 							}else if (strcmp(parName, "ML_EXCLUDE") == 0){
 								snprintf(localSettings.mediaLibraryExclude, sizeof(localSettings.mediaLibraryExclude), "%s", result);
 							}else if (strcmp(parName, "SHUFFLE_ALL_ON_START") == 0){
-								localSettings.shuffleAllOnStart = atoi(result);
+								localSettings.shuffleAllOnStart = atoi(result) ? 1 : 0;
 							}else if (strcmp(parName, "SHUTDOWN_AFTER_BOOKMARK") == 0){
 								localSettings.shutDownAfterBookmark = atoi(result);
 							}else if (strcmp(parName, "HOLD_DISPLAYOFF") == 0){
@@ -198,6 +198,7 @@ struct settings *SETTINGS_default(){
     strcpy(localSettings.mediaLibraryRoot, "ms0:/");
     strcpy(localSettings.mediaLibraryExclude, "");
     localSettings.shuffleAllOnStart = 0;
+    localSettings.restorePlayMode = -1;
 
     localSettings.shutDownAfterBookmark = 0;
     localSettings.HOLD_DISPLAYOFF = 0;

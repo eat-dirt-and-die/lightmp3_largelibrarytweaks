@@ -99,7 +99,27 @@ int opendir_isExcluded(const char *dirName, const char *excludeList){
 // Fallback listing through the firmware when the raw FAT read fails
 // (not enough memory for the FAT table, or a device other than ms0:).
 // The firmware fills the 8.3 short name in when d_private points at a
-// SceIoFatDirentPrivate.
+// SceIoFatDirentPrivate. Depending on firmware/SDK version it may instead
+// write the short name at the start of the buffer (over "size"), so handle
+// both and only keep a short name that really opens.
+static void firmwareShortName(const char *directoryShort, SceIoFatDirentPrivate *priv, char *shortName){
+	char path[264];
+	SceIoStat st;
+
+	if (priv->size == sizeof(*priv))
+		memcpy(shortName, priv->s_name, 13);
+	else
+		memcpy(shortName, priv, 13);
+	shortName[13] = '\0';
+	if (!shortName[0])
+		return;
+	if (directoryShort[strlen(directoryShort)-1] != '/')
+		snprintf(path, sizeof(path), "%s/%s", directoryShort, shortName);
+	else
+		snprintf(path, sizeof(path), "%s%s", directoryShort, shortName);
+	if (sceIoGetstat(path, &st) < 0)
+		shortName[0] = '\0';
+}
 
 static char *opendir_open_firmware(struct opendir_struct *p, const char *directoryShort, char extFilter[][5], int extNumber, int includeDirs){
 	SceIoDirent entry;
@@ -147,8 +167,10 @@ static char *opendir_open_firmware(struct opendir_struct *p, const char *directo
 		el = &p->directory_entry[p->number_of_directory_entries++];
 		strncpy(el->longname, entry.d_name, sizeof(el->longname) - 1);
 		el->longname[sizeof(el->longname) - 1] = '\0';
-		if (priv.s_name[0])
-			strcpy(el->d_name, priv.s_name);
+		char shortName[14];
+		firmwareShortName(directoryShort, &priv, shortName);
+		if (shortName[0])
+			strcpy(el->d_name, shortName);
 		else
 			strcpy(el->d_name, el->longname);
 		el->d_stat = entry.d_stat;

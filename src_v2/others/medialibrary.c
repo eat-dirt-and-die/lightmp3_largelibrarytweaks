@@ -225,6 +225,18 @@ int ML_closeDB(){
 // Scan all memory stick for media (returns number of media found or < 0 if an error occurred):
 // Files already in the library are not re-read, so rescans only pay for new files.
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+//The rest of the library code looks tags up with backslashes doubled
+//(ML_fixStringField), so store them the same way:
+static void ML_doubleBackslashes(char *field, int size){
+    if (!strchr(field, '\\'))
+        return;
+    char *repStr = replace(field, "\\", "\\\\");
+    if (repStr != NULL){
+        snprintf(field, size, "%s", repStr);
+        free(repStr);
+    }
+}
+
 struct scanDirEntry{
     char name[264];
     char shortName[264];
@@ -325,6 +337,10 @@ int ML_scanMS(char *rootDir,
                     unsetAudioFunctions();
                     errorCode = 0;
                     getExtension(fullNameShort, ext, 4);
+                    ML_doubleBackslashes(info.artist, sizeof(info.artist));
+                    ML_doubleBackslashes(info.album, sizeof(info.album));
+                    ML_doubleBackslashes(info.title, sizeof(info.title));
+                    ML_doubleBackslashes(info.genre, sizeof(info.genre));
 
                     sqlite3_bind_text(insertStmt, 1, info.artist, -1, SQLITE_TRANSIENT);
                     sqlite3_bind_text(insertStmt, 2, info.album, -1, SQLITE_TRANSIENT);

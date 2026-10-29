@@ -17,7 +17,9 @@ WHAT'S CHANGED
           subfolders
         - Settings > "Shuffle All on start" (SHUFFLE_ALL_ON_START=1): start
           shuffling ML_ROOT as soon as the app opens
-        Shuffle All doesn't need a library scan.
+        Shuffle All doesn't need a library scan. Press the cancel button while
+        it's finding songs to stop. Your normal play mode comes back after a
+        Shuffle All session.
 -Added: ML_EXCLUDE setting to skip folders (see below)
 -Builds with the current pspdev toolchain
 

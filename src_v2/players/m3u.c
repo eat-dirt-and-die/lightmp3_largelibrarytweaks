@@ -122,9 +122,10 @@ int M3U_open(char *fileName){
                 break;
             if (!lPlayList.songs[playListCount])
                 lPlayList.songs[playListCount] = malloc(sizeof(struct M3U_songEntry));
-			singleEntry = lPlayList.songs[playListCount++];
+			singleEntry = lPlayList.songs[playListCount];
             if (!singleEntry)
                 break;
+			playListCount++;
 			strncpy(singleEntry->fileName, lineText, 263);
 			singleEntry->fileName[263] = '\0';
 			if ((int)singleEntry->fileName[strlen(singleEntry->fileName) - 1] == 10 || (int)singleEntry->fileName[strlen(singleEntry->fileName) - 1] == 13 ){
