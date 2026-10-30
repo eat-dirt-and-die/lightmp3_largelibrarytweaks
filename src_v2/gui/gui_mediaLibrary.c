@@ -35,6 +35,7 @@
 #include "../system/clock.h"
 #include "../system/libminiconv.h"
 #include "../players/player.h"
+#include "../others/coverart.h"
 #include "../players/m3u.h"
 
 #define STATUS_MAINMENU 0
@@ -394,7 +395,7 @@ void drawMLinfo(){
 				size = fileExists(buffer);
 				if (size > 0 && size <= MAX_IMAGE_DIMENSION)
                 {
-					tmpCoverArt = oslLoadImageFileJPG(buffer, OSL_IN_RAM | OSL_SWIZZLED, OSL_PF_8888);
+					tmpCoverArt = coverArtLoadFile(buffer, OSL_IN_RAM | OSL_SWIZZLED, OSL_PF_8888);
                 }
 				else
                 {
@@ -402,7 +403,7 @@ void drawMLinfo(){
 					snprintf(buffer, sizeof(buffer), "%s/%s", dirName, "cover.jpg");
 					size = fileExists(buffer);
 					if (size > 0 && size <= MAX_IMAGE_DIMENSION)
-						tmpCoverArt = oslLoadImageFileJPG(buffer, OSL_IN_RAM | OSL_SWIZZLED, OSL_PF_8888);
+						tmpCoverArt = coverArtLoadFile(buffer, OSL_IN_RAM | OSL_SWIZZLED, OSL_PF_8888);
 				}
 				if (tmpCoverArt){
     				int coverArtWidth  = skinGetParam("MEDIALIBRARY_COVERART_WIDTH");
@@ -817,21 +818,20 @@ int search(){
 		oslEndDrawing();
 		oslSyncFrame();
 
-        mlQueryType = QUERY_SINGLE_ENTRY;
-        mlQueryCount = -1;
-        mlBufferPosition = 0;
-
 		char tempWhere[512] = "";
 		snprintf(tempWhere, sizeof(tempWhere), "title like '%%%s%%' \
                             or artist like '%%%s%%' \
                             or album like '%%%s%%' ",
                             searchString, searchString, searchString);
-        buildQueryMenu("Select media.*, title || ' - ' || artist as strfield, \
+        //Go through changeQuery like the other lists: calling buildQueryMenu
+        //directly left currentStatus at -1, so the results' actions, paging
+        //and "play" read MlStatus[-1] (garbage).
+        changeQuery(QUERY_SINGLE_ENTRY, "Select media.*, title || ' - ' || artist as strfield, \
                                'path = ''' || replace(path, '''', '''''') || '''' as datafield \
                         From media",
-						tempWhere,
-						"title, artist, album",
-						backToMainMenu, 0);
+                    tempWhere,
+                    "title, artist, album",
+                    backToMainMenu, NULL);
 	}
     return 0;
 }

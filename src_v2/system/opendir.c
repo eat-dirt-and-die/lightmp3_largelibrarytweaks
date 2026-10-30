@@ -220,23 +220,18 @@ char *opendir_open(struct opendir_struct *p, const char *directory, const char *
 
 	int i = 0;
 	for (i = 0; i < number_of_directory_entries; i++){
-		char fileName[264] = "";
-		if (directoryShort[strlen(directoryShort)-1] != '/')
-			snprintf(fileName, sizeof(fileName), "%s/%s", directoryShort, finfo[i].filename);
-		else
-			snprintf(fileName, sizeof(fileName), "%s%s", directoryShort, finfo[i].filename);
-        //fwrite(fileName, sizeof(char), strlen(fileName), log);
 		//Filtro le dir "." e "..":
 		if (finfo[i].filename[0] == '.'){
 			//fwrite("2\n", sizeof(char), strlen("1\n"), log);
 			continue;
 		}
 
+		//File or folder comes straight from the FAT entry. This used to call
+		//sceIoGetstat() per entry, and the firmware looks each name up by
+		//scanning the folder, so big folders took a minute or more to list.
 		memset(&p->directory_entry[p->number_of_directory_entries].d_stat, 0, sizeof(SceIoStat));
-		if(sceIoGetstat(fileName, &p->directory_entry[p->number_of_directory_entries].d_stat) < 0){
-			//fwrite("3\n", sizeof(char), strlen("1\n"), log);
-			continue;
-		}
+		p->directory_entry[p->number_of_directory_entries].d_stat.st_mode = (finfo[i].attr & FAT_FILEATTR_DIRECTORY) ? (FIO_S_IFDIR | 0777) : (FIO_S_IFREG | 0777);
+		p->directory_entry[p->number_of_directory_entries].d_stat.st_size = finfo[i].filesize;
 
 		//Controllo il filtro sulle estensioni (solo per i files):
 		if (FIO_S_ISREG(p->directory_entry[p->number_of_directory_entries].d_stat.st_mode)){

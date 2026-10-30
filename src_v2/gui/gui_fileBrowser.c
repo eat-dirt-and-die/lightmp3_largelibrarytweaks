@@ -33,6 +33,7 @@
 #include "../system/opendir.h"
 #include "../system/clock.h"
 #include "../players/player.h"
+#include "../others/coverart.h"
 #include "../players/m3u.h"
 
 #define music_directory_1 "ms0:/MUSIC"
@@ -285,13 +286,13 @@ int gui_fileBrowser(){
 						snprintf(buffer, sizeof(buffer), "%s/%s", dirName, "folder.jpg");
 						size = fileExists(buffer);
 						if (size > 0 && size <= MAX_IMAGE_DIMENSION)
-				            tmpCoverArt = oslLoadImageFileJPG(buffer, OSL_IN_RAM | OSL_SWIZZLED, OSL_PF_8888);
+				            tmpCoverArt = coverArtLoadFile(buffer, OSL_IN_RAM | OSL_SWIZZLED, OSL_PF_8888);
 						else{
 							//Look for cover.jpg in same directory:
 							snprintf(buffer, sizeof(buffer), "%s/%s", dirName, "cover.jpg");
 							size = fileExists(buffer);
 							if (size > 0 && size <= MAX_IMAGE_DIMENSION)
-					            tmpCoverArt = oslLoadImageFileJPG(buffer, OSL_IN_RAM | OSL_SWIZZLED, OSL_PF_8888);
+					            tmpCoverArt = coverArtLoadFile(buffer, OSL_IN_RAM | OSL_SWIZZLED, OSL_PF_8888);
 						}
 						if (tmpCoverArt){
                             int coverArtWidth  = skinGetParam("FILE_BROWSER_COVERART_WIDTH");

@@ -33,6 +33,7 @@
 #include "../system/clock.h"
 #include "../system/brightness.h"
 #include "../players/player.h"
+#include "../others/coverart.h"
 #include "../players/equalizer.h"
 #include "../players/m3u.h"
 #include "../players/id3.h"
@@ -490,15 +491,14 @@ int playFile(char *fileName, char *trackMessage, int index, double startFilePos)
                 sceIoRead(in, tCover, tagInfo.encapsulatedPictureLength);
                 sceIoClose(in);
 
-                oslSetTempFileData(tCover, tagInfo.encapsulatedPictureLength, &VF_MEMORY);
-                tmpCoverArt = oslLoadImageFileJPG(oslGetTempFileName(), OSL_IN_RAM | OSL_SWIZZLED, OSL_PF_8888);
+                tmpCoverArt = coverArtLoadMemory(tCover, tagInfo.encapsulatedPictureLength, OSL_IN_RAM | OSL_SWIZZLED, OSL_PF_8888);
             }
             free(tCover);
             tCover = NULL;
         }
 
     }else if (strlen(tagInfo.coverArtImageName))
-        tmpCoverArt = oslLoadImageFileJPG(tagInfo.coverArtImageName, OSL_IN_RAM | OSL_SWIZZLED, OSL_PF_8888);
+        tmpCoverArt = coverArtLoadFile(tagInfo.coverArtImageName, OSL_IN_RAM | OSL_SWIZZLED, OSL_PF_8888);
 
     if (tmpCoverArt){
     	int coverArtWidth  = skinGetParam("COVERART_WIDTH");
