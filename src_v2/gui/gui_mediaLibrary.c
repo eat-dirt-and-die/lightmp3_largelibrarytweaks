@@ -307,6 +307,10 @@ void drawMLinfo(){
 
     if (mediaLibraryStatus != STATUS_QUERYMENU)
         return;
+    //Nothing to describe (empty result, e.g. a search with no matches):
+    int bufferIndex = commonMenu.selected - mlBufferPosition;
+    if (!commonMenu.numberOfElements || bufferIndex < 0 || bufferIndex >= ML_BUFFERSIZE || !MLresult[bufferIndex])
+        return;
 
     skinGetPosition("POS_MEDIALIBRARY_INFO_BKG", tempPos);
     oslDrawImageXY(infoBkg, tempPos[0], tempPos[1]);
@@ -495,10 +499,19 @@ void queryDataFeed(int index, struct menuElement *element){
         }
 
 		cpuBoost();
-        snprintf(tempSql, sizeof(tempSql), "%s Where %s Order By %s", MlStatus[currentStatus].select, MlStatus[currentStatus].where, MlStatus[currentStatus].orderBy);
+        //Same SQL as buildQueryMenu: artist/album/genre lists keep their
+        //group/order by in the select and have no where/order by. Building
+        //"... Where  Order By " for them was invalid SQL, so those lists
+        //stopped after the first ML_BUFFERSIZE (200) entries.
+        if (strlen(MlStatus[currentStatus].where) && strlen(MlStatus[currentStatus].orderBy))
+            snprintf(tempSql, sizeof(tempSql), "%s Where %s Order By %s", MlStatus[currentStatus].select, MlStatus[currentStatus].where, MlStatus[currentStatus].orderBy);
+        else
+            snprintf(tempSql, sizeof(tempSql), "%s", MlStatus[currentStatus].select);
 		ML_queryDBSelect(tempSql, mlBufferPosition, ML_BUFFERSIZE, MLresult);
         cpuRestore();
     }
+    if (index - mlBufferPosition < 0 || index - mlBufferPosition >= ML_BUFFERSIZE || !MLresult[index - mlBufferPosition])
+        return; //Query failed: leave the row empty instead of crashing
 
 	int startX = 0;
 	int startY = 0;
@@ -551,6 +564,8 @@ int buildQueryMenu(char *select, char *where, char *orderBy, int (*cancelFunctio
 	else
 		snprintf(tempSql, sizeof(tempSql), "%s", select);
     mlQueryCount = ML_countRecordsSelect(tempSql);
+	if (mlQueryCount < 0)
+		mlQueryCount = 0; //SQL error: show an empty list
 	if (mlQueryCount > MENU_MAX_ELEMENTS)
 		mlQueryCount = MENU_MAX_ELEMENTS;
     ML_queryDBSelect(tempSql, 0, ML_BUFFERSIZE, MLresult);
@@ -790,6 +805,12 @@ int search(){
     char searchString[129] = "";
 	askSearchString(langGetString("ASK_SEARCH_STRING"), "", searchString);
 	if (strlen(searchString)){
+        //Escape quotes so a search like "Don't" isn't invalid SQL:
+        char *escaped = replace(searchString, "'", "''");
+        if (escaped != NULL){
+            snprintf(searchString, sizeof(searchString), "%s", escaped);
+            free(escaped);
+        }
 		oslStartDrawing();
 		drawCommonGraphics();
 		drawButtonBar(MODE_MEDIA_LIBRARY);

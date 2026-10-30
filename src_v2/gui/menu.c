@@ -283,14 +283,16 @@ int processMenuKeys(struct menuElements *menu){
             clearPage(menu);
     }else if (menu->numberOfElements && osl_pad.released.cross){
         struct menuElement *selected = menu->elements[menu->selected];
-        if (selected->triggerFunction != NULL)
+        if (selected && selected->triggerFunction != NULL)
             selected->triggerFunction();
     }else if (osl_pad.released.circle){
         if (menu->cancelFunction != NULL)
             menu->cancelFunction();
     }
 
-    if (menu->selected >= 0 && oldSelected != menu->selected)
+    //The trigger function may have rebuilt the menu (e.g. a search with no
+    //results), so check the selected element still exists:
+    if (menu->selected >= 0 && menu->selected < menu->numberOfElements && oldSelected != menu->selected && menu->elements[menu->selected])
         menu->elements[menu->selected]->xPos = 0;
     return 0;
 }
