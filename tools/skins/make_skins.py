@@ -7,7 +7,7 @@ every panel) and differ in palette and artwork. Usage:
     make_skins.py OUT_DIR [theme ...]
 
 Writes OUT_DIR/<Skin Name>/skin.cfg and OUT_DIR/<Skin Name>/images/*.png.
-Themes: duke, luna, clickwheel, y2k, pitlane (default: all).
+Themes: duke, luna, clickwheel, y2k, pitlane3, pitlane2 (default: all).
 """
 import math
 import os
@@ -97,6 +97,11 @@ def edge_no_top(m, rows=2):
     cut = Image.new("L", m.size, 255)
     ImageDraw.Draw(cut).rectangle([0, 0, m.size[0], rows - 1], fill=0)
     return ImageChops.multiply(e, cut)
+
+
+def outline(w, h, r, width=1):
+    """Rounded-rectangle outline drawn directly (keeps straight edges at the image border)."""
+    return mask_from(w, h, lambda d, s: d.rounded_rectangle([0, 0, w * s - 1, h * s - 1], radius=r * s, outline=255, width=int(width * s)))
 
 
 def poly(w, h, pts):
@@ -816,112 +821,288 @@ class Y2K(Theme):
         }
 
 
-# --- Gran Turismo 3 style ---------------------------------------------------
-class PitLane(Theme):
-    name = "Pit Lane"
-    desc = "Late-90s/early-2000s racing game menus: navy, silver, slanted shapes"
+# --- Gran Turismo 3 style (from title screen, GT Mode map and dealer refs) -
+def road_map(w, h, color, seed=3, n=14):
+    """Faint tangle of curving roads, like the GT Mode city map."""
+    r = np.random.default_rng(seed)
+    def draw(d, s):
+        for _ in range(n):
+            pts = []
+            x, y = r.uniform(-40, w + 40), r.uniform(-40, h + 40)
+            ang = r.uniform(0, 2 * math.pi)
+            for _ in range(10):
+                pts.append((x * s, y * s))
+                ang += r.uniform(-0.5, 0.5)
+                step = r.uniform(25, 60)
+                x += math.cos(ang) * step
+                y += math.sin(ang) * step
+            d.line(pts, fill=255, width=int(s * r.choice([1, 1, 2])), joint="curve")
+    return fill(mask_from(w, h, draw), color)
+
+
+class PitLane3(Theme):
+    name = "Pit Lane 3"
+    desc = "Gran Turismo 3 style: red title-screen streaks, dark map strips, orange buttons"
     font = "flash0:/font/ltn6.pgf"  # bold italic
+    O = "#f7941d"
     colors = {
-        "TOOLBAR_TEXT": "#ffffff", "TOOLBAR_TEXT_SHADOW": (0, 10, 40, 255),
-        "BUTTONBAR_TEXT": "#0b1d3f", "BUTTONBAR_TEXT_SHADOW": (255, 255, 255, 120),
-        "BUTTONBAR_SELECTED_TEXT": "#ffffff", "BUTTONBAR_SELECTED_TEXT_SHADOW": (0, 20, 80, 255),
-        "POPUP_TITLE_TEXT": "#ffd23f", "POPUP_TITLE_TEXT_SHADOW": (0, 10, 40, 255),
-        "POPUP_MESSAGE_TEXT": "#ffffff", "POPUP_MESSAGE_TEXT_SHADOW": (0, 10, 40, 255),
-        "MENU_TEXT": "#ffffff", "MENU_TEXT_SHADOW": (0, 10, 40, 255),
-        "MENU_SELECTED_TEXT": "#ffffff", "MENU_SELECTED_TEXT_SHADOW": (0, 20, 80, 255),
-        "LABEL_TEXT": "#8fd3ff", "LABEL_TEXT_SHADOW": (0, 10, 40, 255),
-        "TEXT": "#ffffff", "TEXT_SHADOW": (0, 10, 40, 255),
-        "HELP_TITLE_TEXT": "#ffd23f", "HELP_TITLE_TEXT_SHADOW": (0, 10, 40, 255),
-        "HELP_TEXT": "#ffffff", "HELP_TEXT_SHADOW": (0, 10, 40, 255),
+        "TOOLBAR_TEXT": "#ffffff", "TOOLBAR_TEXT_SHADOW": (0, 0, 0, 255),
+        "BUTTONBAR_TEXT": "#efe6d0", "BUTTONBAR_TEXT_SHADOW": (0, 0, 0, 255),
+        "BUTTONBAR_SELECTED_TEXT": "#1b1006", "BUTTONBAR_SELECTED_TEXT_SHADOW": (0, 0, 0, 0),
+        "POPUP_TITLE_TEXT": "#ffc93c", "POPUP_TITLE_TEXT_SHADOW": (0, 0, 0, 255),
+        "POPUP_MESSAGE_TEXT": "#ffffff", "POPUP_MESSAGE_TEXT_SHADOW": (0, 0, 0, 255),
+        "MENU_TEXT": "#ffffff", "MENU_TEXT_SHADOW": (0, 0, 0, 255),
+        "MENU_SELECTED_TEXT": "#1b1000", "MENU_SELECTED_TEXT_SHADOW": (0, 0, 0, 0),
+        "LABEL_TEXT": "#f9a23a", "LABEL_TEXT_SHADOW": (0, 0, 0, 255),
+        "TEXT": "#ffffff", "TEXT_SHADOW": (0, 0, 0, 255),
+        "HELP_TITLE_TEXT": "#ffc93c", "HELP_TITLE_TEXT_SHADOW": (0, 0, 0, 255),
+        "HELP_TEXT": "#ffffff", "HELP_TEXT_SHADOW": (0, 0, 0, 255),
     }
-    C = "#5cc8ff"
 
     def background(self, w, h):
-        bg = gradient(w, h, [(0, "#020a1e"), (0.5, "#0b2a66"), (1, "#1a4fa8")], angle=110)
-        bands = Image.new("RGBA", (w, h), (0, 0, 0, 0))
-        d = ImageDraw.Draw(bands)
-        for i, (x, wd, a) in enumerate([(-40, 60, 22), (60, 14, 30), (120, 120, 14), (300, 30, 26), (380, 80, 16)]):
-            d.polygon([(x + 90, 0), (x + 90 + wd, 0), (x + wd, h), (x, h)], fill=(140, 200, 255, a))
-        bands = blur(bands, 2)
-        lines = mask_from(w, h, lambda d, s: [d.line([((x + 90) * s, 0), (x * s, h * s)], fill=255, width=s) for x in range(-100, 600, 23)])
-        return over(bg, bands, fill(lines, rgba("#9fd8ff", 12)), noise_overlay(w, h, 22, 9))
+        base = gradient(w, h, [(0, "#b8161a"), (0.45, "#d9262a"), (0.75, "#e0382c"), (1, "#a81216")], angle=20)
+        # horizontal motion blur streaks, hotter on the right like the title screen
+        r = np.random.default_rng(11)
+        streaks = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+        d = ImageDraw.Draw(streaks)
+        for _ in range(70):
+            y = r.uniform(0, h)
+            x0 = r.uniform(-100, w)
+            ln = r.uniform(60, 260)
+            hot = min(1.0, max(0.0, (x0 + ln / 2) / w))
+            c = (255, int(120 + 110 * hot * r.uniform(0.6, 1)), int(40 + 60 * r.uniform(0, 1) * hot), int(30 + 90 * hot * r.uniform(0.3, 1)))
+            d.line([(x0, y), (x0 + ln, y)], fill=c, width=int(r.choice([1, 1, 2, 3])))
+        for _ in range(30):
+            y = r.uniform(0, h)
+            x0 = r.uniform(-100, w)
+            d.line([(x0, y), (x0 + r.uniform(80, 300), y)], fill=(90, 0, 4, 60), width=int(r.choice([2, 4, 6])))
+        streaks = streaks.filter(ImageFilter.GaussianBlur(1.2))
+        streaks = streaks.resize((w // 4, h), Image.BILINEAR).resize((w, h), Image.BILINEAR)  # smear sideways
+        glow_r = radial(w, h, w * 0.9, h * 0.42, w * 0.55, [(0, rgba("#ffb347", 120)), (1, rgba("#ff6a00", 0))])
+        vign = radial(w, h, w / 2, h / 2, w * 0.75, [(0, rgba("#000000", 0)), (0.7, rgba("#000000", 0)), (1, rgba("#3a0004", 140))])
+        return over(base, glow_r, streaks, vign, noise_overlay(w, h, 18, 8))
 
     def toolbar(self, w, h, top):
-        bar = gradient(w, h, [(0, rgba("#04122e", 245)), (1, rgba("#0a2556", 245))] if top else [(0, rgba("#0a2556", 245)), (1, rgba("#04122e", 245))])
-        accent = poly(w, h, [(0, 0), (226, 0), (214, h), (0, h)]) if top else poly(w, h, [(0, 0), (190, 0), (178, h), (0, h)])
-        acc = masked(gradient(w, h, [(0, rgba("#1e5fd0", 230)), (1, rgba("#0d3a8f", 230))]), accent)
+        bar = gradient(w, h, [(0, rgba("#262626", 245)), (1, rgba("#050505", 245))] if top else [(0, rgba("#050505", 245)), (1, rgba("#262626", 245))])
         line = Image.new("RGBA", (w, h), (0, 0, 0, 0))
-        y = h - 1 if top else 0
-        ImageDraw.Draw(line).line([(0, y), (w, y)], fill=rgba(self.C, 255))
-        return over(bar, acc, line)
+        y = h - 2 if top else 0
+        ImageDraw.Draw(line).rectangle([0, y, w, y + 1], fill=rgba(self.O, 255))
+        return over(bar, line)
 
     def tab(self, w, h, sel, i):
-        m = poly(w, h, [(8, 0), (w - 1, 0), (w - 9, h - 1), (1, h - 1)])
-        if sel:
-            body = masked(gradient(w, h, [(0, "#79b8ff"), (0.5, "#2f7cf0"), (1, "#0f48b8")]), m)
-            return over(body, gloss(m, 130, 10, 0.45), fill(edge_no_top(m), rgba("#d6ecff", 230)))
-        body = masked(gradient(w, h, [(0, "#f4f7fb"), (0.5, "#d3dcea"), (1, "#a9b9d2")]), m)
-        return over(body, fill(edge_no_top(m), rgba("#506a94", 255)))
+        m = rrect_hanging(w, h, 7)
+        if sel:  # glossy orange BUY/SPEC button
+            body = masked(radial(w, h, w * 0.5, h * 0.2, w * 0.6, [(0, "#ffb15c"), (0.5, "#f47a22"), (1, "#c9440e")]), m)
+            return over(body, gloss(m, 120, 10, 0.45), fill(edge_no_top(m), rgba("#2a1205", 255)))
+        body = masked(gradient(w, h, [(0, rgba("#2a2a2a", 240)), (1, rgba("#0c0c0c", 240))]), m)
+        return over(body, fill(edge_no_top(m), rgba("#a8936a", 220)))
 
     def panel(self, w, h, kind):
-        cut = min(14, h // 4)
-        pts = [(0, 0), (w - cut, 0), (w, cut), (w, h), (cut, h), (0, h - cut)]
-        m = poly(w, h, pts)
-        body = masked(gradient(w, h, [(0, rgba("#123a82", 225)), (1, rgba("#061738", 235))]), m)
+        m = rrect(w, h, 3)
+        body = masked(gradient(w, h, [(0, rgba("#161412", 222)), (1, rgba("#050505", 230))]), m)
+        roads = masked(road_map(w, h, rgba("#8a6a45", 34), seed=w * 7 + h), m)
         top = Image.new("RGBA", (w, h), (0, 0, 0, 0))
-        ImageDraw.Draw(top).line([(0, 0), (w - cut, 0)], fill=rgba(self.C, 255), width=2)
-        edge = fill(ring(m, rrect_inset(m)), rgba("#3f7fd6", 200))
-        return over(body, edge, top, gloss(m, 30, 0, 0.25))
+        ImageDraw.Draw(top).rectangle([3, 0, w - 4, 1], fill=rgba(self.O, 255))
+        edge = fill(ring(m, rrect_inset(m)), rgba("#5a4a32", 200))
+        return over(body, roads, edge, top)
 
     def highlight(self, w, h):
-        m = poly(w, h, [(6, 0), (w, 0), (w - 6, h), (0, h)])
-        body = masked(gradient(w, h, [(0, "#6fb1ff"), (0.5, "#2a74ea"), (1, "#0f48b8")]), m)
-        return over(body, gloss(m, 120, 0, 0.45))
+        """The title screen's yellow-to-orange selected item."""
+        m = rrect(w, h, 3)
+        body = masked(gradient(w, h, [(0, "#fff07a"), (0.45, "#ffc21a"), (1, "#ff8c00")]), m)
+        return over(body, gloss(m, 90, 0, 0.4), fill(ring(m, rrect_inset(m)), rgba("#5a2a00", 230)))
 
     def progress_bkg(self, w, h):
-        m = poly(w, h, [(4, 0), (w, 0), (w - 4, h), (0, h)])
-        return over(fill(m, rgba("#020a1e", 235)), fill(ring(m, rrect_inset(m)), rgba(self.C, 220)))
+        m = rrect(w, h, 3)
+        return over(fill(m, rgba("#050505", 235)), fill(ring(m, rrect_inset(m)), rgba("#a8936a", 220)))
 
     def progress_bar(self, w, h):
-        """Rev-counter style: segments shading green -> yellow -> red."""
-        img = Image.new("RGBA", (w, h), (0, 0, 0, 0))
-        ramp = gradient(w, 1, [(0, "#3ddc84"), (0.6, "#ffd23f"), (0.85, "#ff8a1f"), (1, "#ff2d2d")], angle=0)
-        for x in range(4, w - 8, 7):
-            c = ramp.getpixel((x, 0))
-            seg = masked(gradient(5, h, [(0, rgba("#ffffff", 255)), (0.35, c), (1, tuple(int(v * 0.6) for v in c[:3]) + (255,))]), poly(5, h, [(1.5, 0), (5, 0), (3.5, h), (0, h)]))
-            img.paste(seg, (x, 0), seg)
-        return img
+        m2 = Image.new("L", (w, h), 0)
+        m2.paste(rrect(w - 4, h, 2), (2, 0))
+        body = masked(gradient(w, h, [(0, "#ffe27a"), (0.5, "#f7941d"), (1, "#c9440e")]), m2)
+        return over(body, gloss(m2, 110, 0, 0.5))
 
     def nocover(self, s):
-        m = poly(s, s, [(0, 0), (s - 14, 0), (s, 14), (s, s), (14, s), (0, s - 14)])
-        bg = masked(gradient(s, s, [(0, "#1e5fd0"), (1, "#061738")]), m)
-        check = Image.new("RGBA", (s, s), (0, 0, 0, 0))
-        d = ImageDraw.Draw(check)
-        cs = s // 9
-        for yy in range(5):
-            for xx in range(9):
-                if (xx + yy) % 2 == 0:
-                    d.rectangle([xx * cs, s * 0.36 + yy * cs * 0.6, xx * cs + cs, s * 0.36 + yy * cs * 0.6 + cs * 0.6], fill=(255, 255, 255, 210))
-        flag = masked(check.transform((s, s), Image.AFFINE, (1, 0.25, -s * 0.12, 0, 1, 0), Image.BICUBIC), m)
-        return over(bg, flag, gloss(m, 60, 0, 0.35), fill(ring(m, rrect_inset(m)), rgba(self.C, 230)))
+        """Dealer showroom: navy spotlight over a light reflective floor."""
+        m = rrect(s, s, 4)
+        sky = radial(s, s, s * 0.5, -s * 0.1, s * 0.9, [(0, "#3a5694"), (0.5, "#16244c"), (1, "#05070f")])
+        floor = gradient(s, s, [(0, rgba("#ffffff", 0)), (0.55, rgba("#ffffff", 0)), (0.62, rgba("#8f98ab", 255)), (1, rgba("#eef1f6", 255))])
+        btn = ellipse(s, s, [s * 0.3, s * 0.3, s * 0.7, s * 0.7])
+        btn_img = masked(radial(s, s, s * 0.46, s * 0.4, s * 0.25, [(0, "#ffb15c"), (0.6, "#f47a22"), (1, "#c9440e")]), btn)
+        note = icon_note(int(s * 0.24), int(s * 0.24), "#ffffff", outline="#2a1205")
+        layer = Image.new("RGBA", (s, s), (0, 0, 0, 0))
+        layer.paste(note, (int(s * 0.37), int(s * 0.37)), note)
+        return over(masked(sky, m), masked(floor, m), shift(glow(btn, rgba("#000000", 120), 3), 0, 3), btn_img,
+                    gloss(btn, 120, 0, 0.45), fill(ring(btn, rrect_inset(rrect_inset(btn))), "#2a1205"), layer,
+                    fill(ring(m, rrect_inset(m)), "#a8936a"))
 
     def icons(self):
-        C = self.C
+        O = self.O
+        coin = ellipse(16, 16, [0.5, 0.5, 15.5, 15.5])
+        cpu = over(masked(radial(16, 16, 6, 5, 10, [(0, "#ffc27a"), (1, "#e2650f")]), coin),
+                   fill(ring(coin, rrect_inset(coin)), "#2a1205"), fill(rrect(16, 16, 1, inset=5), "#2a1205"))
         return {
-            "folder": icon_folder(19, 16, "#8aa2c8", "#e6edf7", rgba("#2b4a7f", 255), gloss_a=120),
-            "music": icon_note(16, 16, "#ffffff", outline="#0b1d3f"),
-            "star": icon_star(16, "#fff3a0", "#ffb000", rgba("#5a3a00", 255)),
-            "blankstar": icon_star(16, "#1e3f7a", "#0b2147", rgba("#5cc8ff", 220), gloss_a=40),
-            "battery": icon_battery(30, 14, "#dfe7f2", ("#9df0b8", "#1fae5a"), rgba("#0b1d3f", 255)),
-            "batterycharging": icon_battery(30, 14, "#dfe7f2", ("#fff3a0", "#e8a317"), rgba("#0b1d3f", 255)),
-            "batterylow": icon_battery(30, 14, "#dfe7f2", ("#ff9a8a", "#d0301a"), rgba("#0b1d3f", 255), frac=0.2),
-            "cpu": icon_cpu(16, ("#2a5aa8", "#0d2a5f"), "#c9d6ea", C),
-            "volume": icon_speaker(16, "#ffffff", C),
+            "folder": icon_folder(19, 16, "#a8936a", "#e3d6b0", rgba("#3a2e1c", 255), gloss_a=110),
+            "music": icon_note(16, 16, "#ffb347", outline="#140a02"),
+            "star": icon_star(16, "#fff07a", "#ff8c00", rgba("#3a1a00", 255)),
+            "blankstar": icon_star(16, "#3a3530", "#1a1714", rgba("#a8936a", 220), gloss_a=30),
+            "battery": icon_battery(30, 14, "#e3d6b0", ("#ffe27a", "#f7941d"), rgba("#140a02", 255)),
+            "batterycharging": icon_battery(30, 14, "#e3d6b0", ("#b8f07a", "#4aa615"), rgba("#140a02", 255)),
+            "batterylow": icon_battery(30, 14, "#e3d6b0", ("#ff9a8a", "#d0301a"), rgba("#140a02", 255), frac=0.2),
+            "cpu": cpu,
+            "volume": icon_speaker(16, "#ffffff", O),
             "headphone": icon_headphone(16, "#ffffff"),
         }
 
 
-THEMES = {"duke": Duke, "luna": Luna, "clickwheel": ClickWheel, "y2k": Y2K, "pitlane": PitLane}
+# --- Gran Turismo 2 style (from city map and dealer refs) -------------------
+def street_grid(w, h, color, water=None, seed=5, highway=None):
+    """Amber city streets on black, with slate water, like GT2's maps."""
+    r = np.random.default_rng(seed)
+    layers = [Image.new("RGBA", (w, h), (0, 0, 0, 0))]
+    if water:
+        coast = [(w * 0.38, h + 5), (w * 0.45, h * 0.86), (w * 0.6, h * 0.8), (w * 0.72, h * 0.66), (w * 0.86, h * 0.6), (w + 5, h * 0.52), (w + 5, h + 5)]
+        wm = mask_from(w, h, lambda d, s: d.polygon([(x * s, y * s) for x, y in coast], fill=255))
+        river = mask_from(w, h, lambda d, s: d.line([(x * s, y * s) for x, y in
+                          [(-10, h * 0.42), (w * 0.2, h * 0.46), (w * 0.4, h * 0.4), (w * 0.62, h * 0.47), (w * 0.82, h * 0.43), (w + 10, h * 0.47)]], fill=255, width=int(5 * s), joint="curve"))
+        layers += [blur(fill(ImageChops.lighter(wm, river), water), 0.6)]
+
+    def grid(d, s):
+        ang = math.radians(6)
+        x = -60.0
+        while x < w + 60:
+            d.line([(x * s, -10 * s), ((x + h * math.tan(ang)) * s, (h + 10) * s)], fill=255, width=s)
+            x += r.uniform(8, 13)
+        y = -30.0
+        while y < h + 30:
+            d.line([(-10 * s, y * s), ((w + 10) * s, (y + w * math.tan(ang * 0.5)) * s)], fill=255, width=s)
+            y += r.uniform(7, 12)
+
+    def highways(d, s):
+        for _ in range(5):
+            pts, x, y, a = [], r.uniform(0, w), r.uniform(0, h), r.uniform(0, 2 * math.pi)
+            for _ in range(14):
+                pts.append((x * s, y * s))
+                a += r.uniform(-0.3, 0.3)
+                x += math.cos(a) * 35
+                y += math.sin(a) * 35
+            d.line(pts, fill=255, width=int(2 * s), joint="curve")
+    streets = fill(mask_from(w, h, grid), color)
+    if water:  # streets stop at the water
+        streets = masked(streets, ImageChops.invert(layers[-1].getchannel("A").point(lambda v: 255 if v > 40 else 0)))
+    layers += [streets]
+    if highway:
+        layers += [fill(mask_from(w, h, highways), highway)]
+    return over(*layers)
+
+
+def road_sign(s, bg, edge, glyph):
+    """Orange rounded-square map sign with a black pictogram mask."""
+    m = rrect(s, s, 3, inset=0)
+    img = over(masked(gradient(s, s, [(0, rgba(bg[0])), (1, rgba(bg[1]))]), m), fill(ring(m, rrect_inset(m)), edge))
+    return over(img, fill(glyph, "#000000"))
+
+
+class PitLane2(Theme):
+    name = "Pit Lane 2"
+    desc = "Gran Turismo 2 style: black, amber city map, orange signs and buttons"
+    font = "flash0:/font/ltn4.pgf"  # bold upright
+    O = "#f5a01a"
+    colors = {
+        "TOOLBAR_TEXT": "#ffffff", "TOOLBAR_TEXT_SHADOW": (0, 0, 0, 255),
+        "BUTTONBAR_TEXT": "#ffffff", "BUTTONBAR_TEXT_SHADOW": (0, 0, 0, 255),
+        "BUTTONBAR_SELECTED_TEXT": "#120800", "BUTTONBAR_SELECTED_TEXT_SHADOW": (0, 0, 0, 0),
+        "POPUP_TITLE_TEXT": "#f5a01a", "POPUP_TITLE_TEXT_SHADOW": (0, 0, 0, 255),
+        "POPUP_MESSAGE_TEXT": "#ffffff", "POPUP_MESSAGE_TEXT_SHADOW": (0, 0, 0, 255),
+        "MENU_TEXT": "#ffffff", "MENU_TEXT_SHADOW": (0, 0, 0, 255),
+        "MENU_SELECTED_TEXT": "#120800", "MENU_SELECTED_TEXT_SHADOW": (0, 0, 0, 0),
+        "LABEL_TEXT": "#f5a01a", "LABEL_TEXT_SHADOW": (0, 0, 0, 255),
+        "TEXT": "#ffffff", "TEXT_SHADOW": (0, 0, 0, 255),
+        "HELP_TITLE_TEXT": "#f5a01a", "HELP_TITLE_TEXT_SHADOW": (0, 0, 0, 255),
+        "HELP_TEXT": "#ffffff", "HELP_TEXT_SHADOW": (0, 0, 0, 255),
+    }
+
+    def background(self, w, h):
+        base = solid(w, h, "#000000")
+        streets = street_grid(w, h, rgba("#d9891a", 70), water=rgba("#3e4759", 255), highway=rgba("#f5a01a", 130))
+        frame = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+        ImageDraw.Draw(frame).rectangle([3, 3, w - 4, h - 4], outline=rgba(self.O, 160), width=1)
+        return over(base, streets, frame)
+
+    def toolbar(self, w, h, top):
+        bar = solid(w, h, "#000000")
+        line = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+        y = h - 2 if top else 0
+        ImageDraw.Draw(line).rectangle([0, y, w, y + 1], fill=rgba(self.O, 255))
+        return over(bar, line)
+
+    def tab(self, w, h, sel, i):
+        """Dealer tab strip: grey pills, the selected one orange."""
+        m = rrect_hanging(w, h, 8, side_inset=2)
+        if sel:
+            body = masked(gradient(w, h, [(0, "#ffb238"), (1, "#e8800a")]), m)
+            return over(body, fill(edge_no_top(m), rgba("#000000", 255)))
+        body = masked(gradient(w, h, [(0, "#6a6a6a"), (1, "#3c3c3c")]), m)
+        return over(body, fill(edge_no_top(m), rgba("#000000", 255)))
+
+    def panel(self, w, h, kind):
+        """Black box with an orange border, like the map frame."""
+        m = rrect(w, h, 4)
+        body = fill(m, rgba("#000000", 230))
+        return over(body, fill(outline(w, h, 4, 2), self.O))
+
+    def highlight(self, w, h):
+        """Orange 'SOUTH CITY' box."""
+        m = rrect(w, h, 3)
+        return over(fill(m, self.O), fill(outline(w, h, 3, 1), "#000000"))
+
+    def progress_bkg(self, w, h):
+        m = rrect(w, h, 4)
+        return over(fill(m, "#000000"), fill(outline(w, h, 4, 1), self.O))
+
+    def progress_bar(self, w, h):
+        m2 = Image.new("L", (w, h), 0)
+        m2.paste(rrect(w - 4, h, 2), (2, 0))
+        return fill(m2, "#ffb238")
+
+    def nocover(self, s):
+        """Black square with the orange ring 'COMPRA' button."""
+        m = rrect(s, s, 4)
+        bg = over(fill(m, "#000000"), masked(street_grid(s, s, rgba("#d9891a", 60), seed=9), m))
+        ringm = ring(ellipse(s, s, [s * 0.2, s * 0.2, s * 0.8, s * 0.8]), ellipse(s, s, [s * 0.29, s * 0.29, s * 0.71, s * 0.71]))
+        inner = ellipse(s, s, [s * 0.29, s * 0.29, s * 0.71, s * 0.71])
+        note = icon_note(int(s * 0.3), int(s * 0.3), "#ffffff")
+        layer = Image.new("RGBA", (s, s), (0, 0, 0, 0))
+        layer.paste(note, (int(s * 0.35), int(s * 0.35)), note)
+        return over(bg, fill(inner, "#000000"), fill(ringm, self.O), layer, fill(outline(s, s, 4, 2), self.O))
+
+    def icons(self):
+        O = self.O
+        sign = ("#ffb238", "#e8800a")
+        folder_glyph = mask_from(16, 16, lambda d, k: (d.polygon([(3 * k, 5 * k), (6.5 * k, 5 * k), (7.5 * k, 6.2 * k), (13 * k, 6.2 * k), (13 * k, 12 * k), (3 * k, 12 * k)], fill=255)))
+        note_glyph = mask_from(16, 16, lambda d, k: (d.ellipse([3.5 * k, 9 * k, 8.5 * k, 13 * k], fill=255), d.rectangle([7 * k, 3 * k, 8.6 * k, 11 * k], fill=255),
+                                                      d.polygon([(7 * k, 3 * k), (12.5 * k, 4.8 * k), (12.5 * k, 7.2 * k), (8.6 * k, 5.6 * k)], fill=255)))
+        folder = Image.new("RGBA", (19, 16), (0, 0, 0, 0))
+        fs = road_sign(16, sign, "#000000", folder_glyph)
+        folder.paste(fs, (1, 0), fs)
+        coin = ellipse(16, 16, [0.5, 0.5, 15.5, 15.5])
+        cpu = over(fill(coin, O), fill(ring(coin, rrect_inset(coin)), "#000000"), fill(rrect(16, 16, 1, inset=5), "#000000"))
+        dot = lambda c: fill(poly(16, 16, star_points(8, 8.6, 8, 3.9)), c)
+        return {
+            "folder": folder,
+            "music": road_sign(16, sign, "#000000", note_glyph),
+            "star": over(dot("#000000"), fill(poly(16, 16, star_points(8, 8.6, 7, 3.3)), "#ffb238")),
+            "blankstar": over(dot("#000000"), fill(poly(16, 16, star_points(8, 8.6, 7, 3.3)), "#4a4a4a")),
+            "battery": icon_battery(30, 14, "#ffffff", ("#ffb238", "#e8800a"), rgba("#000000", 255)),
+            "batterycharging": icon_battery(30, 14, "#ffffff", ("#b8f07a", "#4aa615"), rgba("#000000", 255)),
+            "batterylow": icon_battery(30, 14, "#ffffff", ("#ff9a8a", "#d0301a"), rgba("#000000", 255), frac=0.2),
+            "cpu": cpu,
+            "volume": icon_speaker(16, "#ffffff", O),
+            "headphone": icon_headphone(16, "#ffffff"),
+        }
+
+
+THEMES = {"duke": Duke, "luna": Luna, "clickwheel": ClickWheel, "y2k": Y2K, "pitlane3": PitLane3, "pitlane2": PitLane2}
 
 
 def main():
