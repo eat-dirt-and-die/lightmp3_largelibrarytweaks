@@ -7,7 +7,7 @@ OBJS = prx/supportlib.o \
        others/bookmark.o others/audioscrobbler.o others/medialibrary.o others/log.o others/strreplace.o others/coverart.o \
        gui/settings.o gui/skinsettings.o gui/languages.o gui/menu.o gui/common.o \
        gui/gui_fileBrowser.o gui/gui_player.o gui/gui_playlistsBrowser.o \
-       gui/gui_playlistEditor.o gui/gui_settings.o gui/gui_mediaLibrary.o gui/shuffleAll.o \
+       gui/gui_playlistEditor.o gui/gui_settings.o gui/gui_mediaLibrary.o gui/shuffleAll.o gui/textcompat.o \
        cooleyesBridge.o main.o
 
 #To build for custom firmware:

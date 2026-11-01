@@ -21,6 +21,7 @@
 #include "settings.h"
 #include "../system/opendir.h"
 #include "menu.h"
+#include "textcompat.h"
 
 #define ANALOG_SENS 80
 

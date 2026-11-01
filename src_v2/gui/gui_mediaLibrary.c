@@ -81,6 +81,78 @@ static OSL_IMAGE *coverArt = NULL;
 static int coverArtFailed = 0;
 static struct libraryEntry *localResult[ML_BUFFERSIZE];
 
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// Map style main menu (skin option MEDIALIBRARY_MAP=1): instead of a text list
+// each entry is a picture placed on medialibrarybkg.png, like a game's city map.
+// The skin provides mlitem1..9.png and mlitemsel1..9.png (selected), their
+// positions POS_MEDIALIBRARY_MAP_ITEM_1..9 and optionally
+// POS_MEDIALIBRARY_MAP_CAPTION, where the selected entry's name is written.
+// If any picture is missing the normal list is used.
+///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+#define MAP_MENU_ITEMS 9
+static OSL_IMAGE *mapItem[MAP_MENU_ITEMS];
+static OSL_IMAGE *mapItemSel[MAP_MENU_ITEMS];
+static int mapMenu = 0;
+
+static void unloadMapMenu(){
+    int i;
+    for (i = 0; i < MAP_MENU_ITEMS; i++){
+        if (mapItem[i])
+            oslDeleteImage(mapItem[i]);
+        if (mapItemSel[i])
+            oslDeleteImage(mapItemSel[i]);
+        mapItem[i] = mapItemSel[i] = NULL;
+    }
+    mapMenu = 0;
+}
+
+static void loadMapMenu(){
+    int i;
+    unloadMapMenu();
+    if (skinGetParam("MEDIALIBRARY_MAP") != 1)
+        return;
+    for (i = 0; i < MAP_MENU_ITEMS; i++){
+        snprintf(buffer, sizeof(buffer), "%s/mlitem%i.png", userSettings->skinImagesPath, i + 1);
+        mapItem[i] = oslLoadImageFilePNG(buffer, OSL_IN_RAM | OSL_SWIZZLED, OSL_PF_8888);
+        snprintf(buffer, sizeof(buffer), "%s/mlitemsel%i.png", userSettings->skinImagesPath, i + 1);
+        mapItemSel[i] = oslLoadImageFilePNG(buffer, OSL_IN_RAM | OSL_SWIZZLED, OSL_PF_8888);
+        if (!mapItem[i] || !mapItemSel[i]){
+            unloadMapMenu();
+            return;
+        }
+    }
+    mapMenu = 1;
+}
+
+static void drawMapMenu(){
+    char posName[52];
+    int i;
+
+    if (commonMenu.background)
+        oslDrawImageXY(commonMenu.background, commonMenu.xPos, commonMenu.yPos);
+    for (i = 0; i < MAP_MENU_ITEMS && i < commonMenu.numberOfElements; i++){
+        snprintf(posName, sizeof(posName), "POS_MEDIALIBRARY_MAP_ITEM_%i", i + 1);
+        skinGetPosition(posName, tempPos);
+        oslDrawImageXY(i == commonMenu.selected ? mapItemSel[i] : mapItem[i], tempPos[0], tempPos[1]);
+    }
+    if (skinGetPosition("POS_MEDIALIBRARY_MAP_CAPTION", tempPos) == 0 && commonMenu.selected >= 0 &&
+        commonMenu.selected < commonMenu.numberOfElements && commonMenu.elements[commonMenu.selected]){
+        oslSetFont(fontNormal);
+        skinGetColor("RGBA_TEXT", tempColor);
+        skinGetColor("RGBA_TEXT_SHADOW", tempColorShadow);
+        setFontStyle(fontNormal, defaultTextSize, RGBA(tempColor[0], tempColor[1], tempColor[2], tempColor[3]), RGBA(tempColorShadow[0], tempColorShadow[1], tempColorShadow[2], tempColorShadow[3]), INTRAFONT_ALIGN_LEFT);
+        oslDrawString(tempPos[0], tempPos[1], commonMenu.elements[commonMenu.selected]->text);
+    }
+}
+
+//The main menu as a map when the skin has one, otherwise the usual list:
+static void drawLibraryMenu(){
+    if (mapMenu && mediaLibraryStatus == STATUS_MAINMENU)
+        drawMapMenu();
+    else
+        drawMenu(&commonMenu);
+}
+
 #define MAX_ORDER_BY 9
 static int selectedOrderBy = 0;
 static char orderBy[MAX_ORDER_BY][100] = {
@@ -130,7 +202,7 @@ int addSelectionToPlaylist(char *where, char *orderBy, int fastMode, char *m3uNa
                 oslStartDrawing();
                 drawCommonGraphics();
                 drawButtonBar(MODE_MEDIA_LIBRARY);
-                drawMenu(&commonMenu);
+                drawLibraryMenu();
                 drawMLinfo();
                 snprintf(message, sizeof(message), "%3.3i%% %s", perc, langGetString("DONE"));
 
@@ -287,7 +359,7 @@ void drawQueryRunning(){
     oslStartDrawing();
     drawCommonGraphics();
     drawButtonBar(MODE_MEDIA_LIBRARY);
-    drawMenu(&commonMenu);
+    drawLibraryMenu();
     drawMLinfo();
     drawWait(langGetString("QUERY_RUNNING_TITLE"), langGetString("QUERY_RUNNING"));
     oslEndDrawing();
@@ -769,7 +841,7 @@ void askSearchString(char *message, char *initialValue, char *target){
 			oslStartDrawing();
 			drawCommonGraphics();
 			drawButtonBar(MODE_MEDIA_LIBRARY);
-			drawMenu(&commonMenu);
+			drawLibraryMenu();
 
 			if (oslOskIsActive())
 				oslDrawOsk();
@@ -988,6 +1060,7 @@ int gui_mediaLibrary(){
     //Build menu:
     buildMainMenu();
     buildOrderByMenu();
+    loadMapMenu();
 
     exitFlagMediaLibrary = 0;
 	int skip = 0;
@@ -998,7 +1071,7 @@ int gui_mediaLibrary(){
 			oslStartDrawing();
 			drawCommonGraphics();
 			drawButtonBar(MODE_MEDIA_LIBRARY);
-			drawMenu(&commonMenu);
+			drawLibraryMenu();
 			if (mediaLibraryStatus == STATUS_QUERYMENU)
 				drawMLinfo();
 
@@ -1074,6 +1147,13 @@ int gui_mediaLibrary(){
                 exitFlagMediaLibrary = 1;
             }
 
+            //On the map, left/right step through the entries as well:
+            if (mapMenu && mediaLibraryStatus == STATUS_MAINMENU && commonMenu.numberOfElements){
+                if (osl_pad.pressed.left)
+                    commonMenu.selected = (commonMenu.selected + commonMenu.numberOfElements - 1) % commonMenu.numberOfElements;
+                else if (osl_pad.pressed.right)
+                    commonMenu.selected = (commonMenu.selected + 1) % commonMenu.numberOfElements;
+            }
             if (!ratingChangedUpDown)
                 processMenuKeys(&commonMenu);
 
@@ -1084,6 +1164,7 @@ int gui_mediaLibrary(){
 
     clearMenu(&commonMenu);
     clearMenu(&commonSubMenu);
+    unloadMapMenu();
 
     oslDeleteImage(scanBkg);
     scanBkg = NULL;

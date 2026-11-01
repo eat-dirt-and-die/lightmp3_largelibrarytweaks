@@ -181,6 +181,8 @@ void loadFonts()
 {
 	skinGetString("STR_FONT_NORMAL_NAME", buffer);
 	fontNormal = oslLoadFontFile(buffer);
+    if (!fontNormal) //A skin's own font that won't load: use the PSP's instead of quitting
+        fontNormal = oslLoadFontFile("flash0:/font/ltn0.pgf");
     if (!fontNormal)
         errorLoadImage(buffer);
 	if ( fontNormal->fontType == OSL_FONT_INTRA && skinGetString("STR_FONT_ALT_NAME", buffer) == 0 )
