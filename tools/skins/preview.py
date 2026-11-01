@@ -115,8 +115,9 @@ class Screen:
                 else self._paste_clipped(im, x, y)
 
     def _paste_clipped(self, im, x, y):
+        # copy (no mask) so semi-transparent pixels keep their alpha, then blend once like the GU does
         layer = Image.new("RGBA", (W, H), (0, 0, 0, 0))
-        layer.paste(im, (x, y), im)
+        layer.paste(im, (x, y))
         self.img.alpha_composite(layer)
 
     def width(self, s):

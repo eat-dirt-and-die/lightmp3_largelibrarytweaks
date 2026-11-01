@@ -13,6 +13,7 @@ The two Pit Lane skins need Node.js with Playwright (see gt_skins.py).
 import math
 import os
 import re
+import zlib
 import sys
 
 import numpy as np
@@ -451,6 +452,8 @@ class Theme:
         """Anything else the skin ships (fonts, licenses)."""
 
     def build(self, out):
+        global rng  # one seed per theme, so a theme looks the same whatever was built before it
+        rng = np.random.default_rng(zlib.crc32(self.name.encode()))
         sizes = dict(SIZES)
         sizes.update(self.sizes)
         imgs = self.images(sizes)
@@ -846,7 +849,11 @@ THEMES = {"duke": Duke, "luna": Luna, "clickwheel": ClickWheel, "y2k": Y2K}
 
 def main():
     import gt_skins  # Pit Lane 3 / Pit Lane 2: SVG artwork rendered with Chromium
+    import xp_skins  # Luna gets an XP desktop Media Library (also SVG)
     THEMES.update(gt_skins.THEMES)
+    import crossbar_skins  # Crossbar: PlayStation XMB style (also SVG)
+    THEMES.update(xp_skins.THEMES)
+    THEMES.update(crossbar_skins.THEMES)
     out = sys.argv[1]
     names = sys.argv[2:] or list(THEMES)
     for n in names:

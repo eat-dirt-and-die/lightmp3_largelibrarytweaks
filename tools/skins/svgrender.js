@@ -10,10 +10,12 @@ const fs = require('fs');
 
 (async () => {
   const manifest = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
-  const faces = manifest.fonts.map(f =>
-    `@font-face{font-family:'${f.family}';font-weight:${f.weight};font-style:${f.style};` +
-    `src:url(data:font/ttf;base64,${fs.readFileSync(f.path).toString('base64')}) format('truetype');}`
-  ).join('\n');
+  const faces = manifest.fonts.map(f => {
+    const otf = f.path.toLowerCase().endsWith('.otf');
+    return `@font-face{font-family:'${f.family}';font-weight:${f.weight};font-style:${f.style};` +
+      `src:url(data:font/${otf ? 'otf' : 'ttf'};base64,${fs.readFileSync(f.path).toString('base64')}) ` +
+      `format('${otf ? 'opentype' : 'truetype'}');}`;
+  }).join('\n');
   const browser = await chromium.launch();
   const page = await browser.newPage({ deviceScaleFactor: 1 });
   await page.setContent(`<!doctype html><html><head><style>${faces}

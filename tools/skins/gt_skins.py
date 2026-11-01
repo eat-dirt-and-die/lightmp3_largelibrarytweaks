@@ -120,8 +120,9 @@ def pointer(x, y, fill="#ffffff", stroke="#000000", scale=1.0):
         pts([(x + px * scale, y + py * scale) for px, py in shape]), fill, stroke)
 
 
-def render(skin, jobs):
-    """jobs: {name: (svg, w, h)} -> {name: RGBA image}. The SVGs are kept in svg/<skin>/."""
+def render(skin, jobs, fonts=None):
+    """jobs: {name: (svg, w, h)} -> {name: RGBA image}. The SVGs are kept in svg/<skin>/.
+    fonts: (family, weight, style, file) faces the SVGs may use (default FONT_FILES)."""
     out_svg = os.path.join(SVG_DIR, skin)
     if os.path.isdir(out_svg):
         shutil.rmtree(out_svg)
@@ -129,7 +130,7 @@ def render(skin, jobs):
     tmp = tempfile.mkdtemp(prefix="skinsvg")
     try:
         manifest = {"fonts": [{"family": fam, "weight": w, "style": st, "path": os.path.join(FONT_DIR, fn)}
-                              for fam, w, st, fn in FONT_FILES], "jobs": []}
+                              for fam, w, st, fn in (fonts or FONT_FILES)], "jobs": []}
         for name, (svg, w, h) in jobs.items():
             path = os.path.join(out_svg, name + ".svg")
             with open(path, "w") as fh:
