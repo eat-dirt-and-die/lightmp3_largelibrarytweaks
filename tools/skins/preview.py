@@ -16,6 +16,8 @@ import re
 
 from PIL import Image, ImageDraw, ImageFont
 
+from oftfont import OftFont
+
 W, H = 480, 272
 # OSLib's charHeight for intraFont is the font's texYSize, which doesn't change
 # with FONT_NORMAL_SIZE. Measured from photos of a PSP-3000: about 17 px.
@@ -69,8 +71,15 @@ class Skin:
         for name in ("folder", "music"):
             if name not in self.images:
                 self.images[name] = Image.open(os.path.join(path, "..", "default", "images", name + ".png")).convert("RGBA")
+        # A skin's own bitmap font (.oft) is drawn exactly like OSLib does it.
+        self.oft = None
+        self.char_height = CHAR_HEIGHT
+        font_name = self.cfg.get("STR_FONT_NORMAL_NAME", "")
+        if font_name.lower().endswith(".oft"):
+            self.oft = OftFont(font_name.replace("$skinimage", img_dir))
+            self.char_height = self.oft.charHeight
         size = int(self.cfg.get("FONT_NORMAL_SIZE", "50")) / 100.0
-        m = re.search(r"ltn(\d+)\.pgf", self.cfg.get("STR_FONT_NORMAL_NAME", ""))
+        m = re.search(r"ltn(\d+)\.pgf", font_name)
         face = PGF_TO_TTF.get(int(m.group(1)) % 8 if m else 0)
         self.font = ImageFont.truetype(os.path.join(FONT_DIR, face), max(6.0, size * PX_PER_SIZE))
 
@@ -111,13 +120,18 @@ class Screen:
         self.img.alpha_composite(layer)
 
     def width(self, s):
+        if self.skin.oft:
+            return self.skin.oft.width(s)
         return self.skin.font.getlength(s)
 
     def text(self, x, y, s, color_key, max_width=None):
-        """oslDrawString: baseline at y + charHeight/2 + 1."""
+        """oslDrawString: intraFont baseline at y + charHeight/2 + 1; .oft cell top at y."""
         if x < -100 or y < -100:
             return
         color = self.skin.color(color_key)
+        if self.skin.oft:
+            self.skin.oft.draw(self.img, x, y, s, color, max_width)
+            return
         shadow = self.skin.color(color_key + "_SHADOW")
         layer = Image.new("RGBA", (W, H), (0, 0, 0, 0))
         d = ImageDraw.Draw(layer)
@@ -167,7 +181,7 @@ class Screen:
         interline = sk.param("MENU_INTERLINE")
         bg = sk.images[bkg]
         width, height = bg.size
-        row = CHAR_HEIGHT + interline
+        row = sk.char_height + interline
         visible = height // row
         start_y = int(y + (height - visible * row) / 2.0)
         self.image(bkg, x, y)
@@ -275,7 +289,16 @@ def render_library(skin):
     items = [LANG[k] for k in ["SHUFFLE_ALL", "BROWSE_ALL", "BROWSE_ARTIST", "BROWSE_ALBUM", "BROWSE_GENRE",
                                "BROWSE_RATING", "BROWSE_TOP100", "SEARCH", "SCAN_MS"]]
     x, y = sk.pos("POS_MEDIALIBRARY")
-    s.menu("medialibrarybkg", x, y, items, 0, align="center")
+    if sk.param("MEDIALIBRARY_MAP", -1) == 1 and all("mlitem%d" % i in sk.images for i in range(1, 10)):
+        # gui_mediaLibrary.c drawMapMenu()
+        selected = 2
+        s.image("medialibrarybkg", x, y)
+        for i in range(1, 10):
+            s.image(("mlitemsel%d" if i - 1 == selected else "mlitem%d") % i, *sk.pos("POS_MEDIALIBRARY_MAP_ITEM_%d" % i))
+        if "POS_MEDIALIBRARY_MAP_CAPTION" in sk.cfg:
+            s.text(*sk.pos("POS_MEDIALIBRARY_MAP_CAPTION"), items[selected], "RGBA_TEXT")
+    else:
+        s.menu("medialibrarybkg", x, y, items, 0, align="center")
     return s.img
 
 

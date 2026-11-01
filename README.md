@@ -21,6 +21,9 @@ WHAT'S CHANGED
         it's finding songs to stop. Your normal play mode comes back after a
         Shuffle All session.
 -Added: ML_EXCLUDE setting to skip folders (see below)
+-Added: six skins with bigger, high-contrast text (Duke, Luna, ClickWheel, Y2K Chrome,
+        Pit Lane 3, Pit Lane 2). Skins can now ship their own font and a map-style
+        Media Library menu (see tools/skins/README.md)
 -Builds with the current pspdev toolchain
 
 INSTALL / UPDATE
